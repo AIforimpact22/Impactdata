@@ -1,69 +1,91 @@
 import streamlit as st
 import mysql.connector
 
-# --- Database Configuration ---
+# --- Superuser (admin) credentials for MySQL ---
 DB_CONFIG = {
     "host": "188.36.44.146",
     "port": 8081,
-    "user": "Hawkar",
-    "password": "Noway2025",
-    "database": "my_streamlit_db"
+    "user": "Hawkar",         # Needs privilege to create DBs and users
+    "password": "Noway2025"
 }
 
 def get_connection():
     return mysql.connector.connect(**DB_CONFIG)
 
-st.title("Create New Table and Generate Link")
+st.title("Create a New MySQL Database for Your App")
 
-# Table creation form
-with st.form("create_table_form"):
-    table_name = st.text_input("Table name (no spaces, only letters, numbers, and underscores)")
-    columns = st.text_area(
-        "Columns (e.g. `id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50), email VARCHAR(100)`)",
-        "id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50), email VARCHAR(100)"
-    )
-    submit = st.form_submit_button("Create Table")
+with st.form("create_db_form"):
+    db_name = st.text_input("Database name (no spaces, only letters, numbers, underscores)")
+    new_user = st.text_input("New username for this DB (optional)")
+    new_password = st.text_input("Password for new user (optional)", type="password")
+    submitted = st.form_submit_button("Create Database")
 
-if submit:
+if submitted:
     # Basic input validation
-    if not table_name.replace("_", "").isalnum() or " " in table_name:
-        st.error("Invalid table name! Use only letters, numbers, and underscores, no spaces.")
+    if not db_name.replace("_", "").isalnum() or " " in db_name:
+        st.error("Invalid database name! Use only letters, numbers, underscores.")
+    elif (new_user and not new_user.replace("_", "").isalnum()) or " " in new_user:
+        st.error("Invalid username! Use only letters, numbers, underscores.")
     else:
         try:
             conn = get_connection()
             cursor = conn.cursor()
-            sql = f"CREATE TABLE {table_name} ({columns})"
-            cursor.execute(sql)
-            conn.commit()
+            # 1. Create the new database
+            cursor.execute(f"CREATE DATABASE `{db_name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+            st.success(f"Database `{db_name}` created!")
+
+            if new_user and new_password:
+                # 2. Create user and grant all privileges on the new DB
+                cursor.execute(
+                    f"CREATE USER IF NOT EXISTS '{new_user}'@'%' IDENTIFIED BY '{new_password}';"
+                )
+                cursor.execute(
+                    f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO '{new_user}'@'%';"
+                )
+                cursor.execute("FLUSH PRIVILEGES;")
+                st.success(f"User `{new_user}` created and given access to `{db_name}`.")
+
+                conn_info = {
+                    "host": DB_CONFIG["host"],
+                    "port": DB_CONFIG["port"],
+                    "database": db_name,
+                    "user": new_user,
+                    "password": new_password,
+                }
+            else:
+                # If not creating a user, show admin connection info for this DB
+                conn_info = {
+                    "host": DB_CONFIG["host"],
+                    "port": DB_CONFIG["port"],
+                    "database": db_name,
+                    "user": DB_CONFIG["user"],
+                    "password": DB_CONFIG["password"],
+                }
+
+            st.subheader("Connection Info:")
+            st.code(
+                f"mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p {conn_info['database']}"
+            )
+            st.write("Or as a Python/MySQL connection string:")
+            st.code(
+                f"mysql.connector.connect(host='{conn_info['host']}', port={conn_info['port']}, user='{conn_info['user']}', password='***', database='{conn_info['database']}')"
+            )
+
             cursor.close()
             conn.close()
-            st.success(f"Table `{table_name}` created successfully!")
-
-            # Generate a "link" to view or interact with this table (e.g. yourapp.com/?table=tablename)
-            base_url = "https://yourstreamlitappurl.com"  # Change this to your real Streamlit app URL
-            table_link = f"{base_url}/?table={table_name}"
-            st.write("Shareable link to access this table:")
-            st.code(table_link)
-            st.button("Copy Link", on_click=lambda: st.session_state.update({"_copied": True}))
-            if st.session_state.get("_copied", False):
-                st.success("Link copied! (or just highlight and copy manually)")
-
         except Exception as e:
-            st.error(f"Failed to create table: {e}")
+            st.error(f"Failed to create database or user: {e}")
 
-# Optionally, show all existing tables and links
+# Optionally, show a list of all databases for reference
 try:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SHOW TABLES")
-    tables = [row[0] for row in cursor.fetchall()]
+    cursor.execute("SHOW DATABASES")
+    dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
     cursor.close()
     conn.close()
-    if tables:
-        st.write("**Existing tables and links:**")
-        base_url = "https://yourstreamlitappurl.com"  # Change to your deployed Streamlit app URL
-        for t in tables:
-            st.write(f"• `{t}` — [Open Table Link]({base_url}/?table={t})")
+    if dbs:
+        st.write("**Existing databases:**")
+        st.write(", ".join(f"`{db}`" for db in dbs))
 except Exception as e:
-    st.warning("Could not list tables. Check your connection or database.")
-
+    st.warning("Could not list databases.")
