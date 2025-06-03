@@ -21,7 +21,6 @@ def get_connection(db_name=None):
 st.sidebar.title("Navigation")
 if "page" not in st.session_state:
     st.session_state.page = "Provision Database"
-
 if st.sidebar.button("Provision Database"):
     st.session_state.page = "Provision Database"
 if st.sidebar.button("Database Browser"):
@@ -31,7 +30,7 @@ if st.sidebar.button("Connection Info"):
 if st.sidebar.button("Delete"):
     st.session_state.page = "Delete"
 
-# --- Page 1: Provision Database and Tables (no new user) ---
+# --- Page 1: Provision Database and Tables ---
 if st.session_state.page == "Provision Database":
     st.title("Provision New MySQL Database (+Tables)")
     with st.form("create_db_form"):
@@ -98,7 +97,7 @@ conn = mysql.connector.connect(
             except Exception as e:
                 st.error(f"Failed to create database or tables: {e}")
 
-# --- Page 2: Database Browser with Table Data Preview (no nested expanders!) ---
+# --- Page 2: Database Browser with Table Data Preview ---
 elif st.session_state.page == "Database Browser":
     st.title("Database Browser")
     try:
@@ -193,7 +192,7 @@ conn = mysql.connector.connect(
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
 
-# --- Page 4: Delete Database or Table ---
+# --- Page 4: Delete Database or Table (simple confirmation) ---
 elif st.session_state.page == "Delete":
     st.title("Delete Database or Table")
     try:
@@ -205,51 +204,51 @@ elif st.session_state.page == "Delete":
         conn.close()
         if dbs:
             selected_db = st.selectbox("Select database:", dbs, key="delete_db_select")
-            # Delete whole database
-            if st.button(f"❌ Delete ENTIRE database `{selected_db}`", key="delete_db_btn"):
-                if st.text_input(f"Type DELETE to confirm deletion of database `{selected_db}`", key="db_del_confirm") == "DELETE":
-                    try:
-                        conn = get_connection()
-                        cursor = conn.cursor()
-                        cursor.execute(f"DROP DATABASE `{selected_db}`")
-                        conn.commit()
-                        cursor.close()
-                        conn.close()
-                        st.success(f"Database `{selected_db}` deleted!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Could not delete database: {e}")
-                else:
-                    st.warning("You must type DELETE to confirm.")
+            col_db, col_table = st.columns(2)
+            with col_db:
+                if st.button(f"❌ Delete ENTIRE database `{selected_db}`", key="delete_db_btn"):
+                    st.warning(f"This will permanently delete database `{selected_db}` and ALL its data.")
+                    if st.button("Confirm database delete", key="confirm_delete_db_btn"):
+                        try:
+                            conn = get_connection()
+                            cursor = conn.cursor()
+                            cursor.execute(f"DROP DATABASE `{selected_db}`")
+                            conn.commit()
+                            cursor.close()
+                            conn.close()
+                            st.success(f"Database `{selected_db}` deleted!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Could not delete database: {e}")
             # List tables for deletion
-            try:
-                conn = get_connection(selected_db)
-                cursor = conn.cursor()
-                cursor.execute("SHOW TABLES")
-                tables = [r[0] for r in cursor.fetchall()]
-                cursor.close()
-                conn.close()
-                if tables:
-                    selected_table = st.selectbox("Select table to delete:", tables, key="delete_table_select")
-                    if st.button(f"Delete table `{selected_table}` from `{selected_db}`", key="delete_table_btn"):
-                        if st.text_input(f"Type DELETE to confirm deletion of table `{selected_table}`", key="table_del_confirm") == "DELETE":
-                            try:
-                                conn = get_connection(selected_db)
-                                cursor = conn.cursor()
-                                cursor.execute(f"DROP TABLE `{selected_table}`")
-                                conn.commit()
-                                cursor.close()
-                                conn.close()
-                                st.success(f"Table `{selected_table}` deleted from `{selected_db}`!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Could not delete table: {e}")
-                        else:
-                            st.warning("You must type DELETE to confirm.")
-                else:
-                    st.info("No tables in this database to delete.")
-            except Exception as e:
-                st.error(f"Could not fetch tables: {e}")
+            with col_table:
+                try:
+                    conn = get_connection(selected_db)
+                    cursor = conn.cursor()
+                    cursor.execute("SHOW TABLES")
+                    tables = [r[0] for r in cursor.fetchall()]
+                    cursor.close()
+                    conn.close()
+                    if tables:
+                        selected_table = st.selectbox("Select table to delete:", tables, key="delete_table_select")
+                        if st.button(f"Delete table `{selected_table}` from `{selected_db}`", key="delete_table_btn"):
+                            st.warning(f"This will permanently delete table `{selected_table}` from `{selected_db}`.")
+                            if st.button("Confirm table delete", key="confirm_delete_table_btn"):
+                                try:
+                                    conn = get_connection(selected_db)
+                                    cursor = conn.cursor()
+                                    cursor.execute(f"DROP TABLE `{selected_table}`")
+                                    conn.commit()
+                                    cursor.close()
+                                    conn.close()
+                                    st.success(f"Table `{selected_table}` deleted from `{selected_db}`!")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Could not delete table: {e}")
+                    else:
+                        st.info("No tables in this database to delete.")
+                except Exception as e:
+                    st.error(f"Could not fetch tables: {e}")
         else:
             st.info("No user-created databases found.")
     except Exception as e:
