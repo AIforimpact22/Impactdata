@@ -28,14 +28,12 @@ if st.sidebar.button("Database Browser"):
 if st.sidebar.button("Connection Info"):
     st.session_state.page = "Connection Info"
 
-# --- Page 1: Provision Database, User, and Tables ---
+# --- Page 1: Provision Database and Tables (no new user) ---
 if st.session_state.page == "Provision Database":
     st.title("Provision New MySQL Database (+Tables)")
 
     with st.form("create_db_form"):
         db_name = st.text_input("Database name (letters, numbers, underscores)")
-        new_user = st.text_input("New username for this DB (optional)")
-        new_password = st.text_input("Password for new user (optional)", type="password")
         tables_sql = st.text_area(
             "Table SQL (enter one or more CREATE TABLE statements for your new database)",
             "CREATE TABLE users (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(50),\n  email VARCHAR(100)\n);"
@@ -45,25 +43,12 @@ if st.session_state.page == "Provision Database":
     if submitted:
         if not db_name.replace("_", "").isalnum() or " " in db_name:
             st.error("Invalid database name! Use only letters, numbers, underscores.")
-        elif new_user and (not new_user.replace("_", "").isalnum() or " " in new_user):
-            st.error("Invalid username! Use only letters, numbers, underscores.")
         else:
             try:
-                # Create database and (optionally) user
                 conn = get_connection()
                 cursor = conn.cursor()
                 cursor.execute(f"CREATE DATABASE `{db_name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
                 st.success(f"Database `{db_name}` created!")
-
-                if new_user and new_password:
-                    cursor.execute(
-                        f"CREATE USER IF NOT EXISTS '{new_user}'@'%' IDENTIFIED BY '{new_password}';"
-                    )
-                    cursor.execute(
-                        f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO '{new_user}'@'%';"
-                    )
-                    cursor.execute("FLUSH PRIVILEGES;")
-                    st.success(f"User `{new_user}` created and given access to `{db_name}`.")
 
                 # Switch to the new database and execute table SQL
                 conn.database = db_name
@@ -76,32 +61,16 @@ if st.session_state.page == "Provision Database":
                 cursor.close()
                 conn.close()
 
-                # Show clear connection info for new DB/user
-                if new_user and new_password:
-                    conn_info = {
-                        "host": DB_CONFIG["host"],
-                        "port": DB_CONFIG["port"],
-                        "database": db_name,
-                        "user": new_user,
-                        "password": new_password,
-                    }
-                else:
-                    conn_info = {
-                        "host": DB_CONFIG["host"],
-                        "port": DB_CONFIG["port"],
-                        "database": db_name,
-                        "user": DB_CONFIG["user"],
-                        "password": DB_CONFIG["password"],
-                    }
+                # Show clear connection info for new DB with admin user
                 st.markdown("---")
-                st.success("🎉 Database and user successfully created!\n")
+                st.success("🎉 Database successfully created!\n")
                 st.markdown("### How to Connect Remotely")
                 st.markdown("**From another device, use these connection settings:**")
                 
                 # MySQL CLI
                 st.markdown("#### MySQL Command Line:")
                 st.code(
-                    f"mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p {conn_info['database']}",
+                    f"mysql -h {DB_CONFIG['host']} -P {DB_CONFIG['port']} -u {DB_CONFIG['user']} -p {db_name}",
                     language="bash"
                 )
                 st.write("Enter your password when prompted.")
@@ -112,11 +81,11 @@ if st.session_state.page == "Provision Database":
                     f"""import mysql.connector
 
 conn = mysql.connector.connect(
-    host="{conn_info['host']}",
-    port={conn_info['port']},
-    user="{conn_info['user']}",
+    host="{DB_CONFIG['host']}",
+    port={DB_CONFIG['port']},
+    user="{DB_CONFIG['user']}",
     password="YOUR_PASSWORD",
-    database="{conn_info['database']}"
+    database="{db_name}"
 )
 # ... your code ...
 """, language="python"
@@ -125,19 +94,19 @@ conn = mysql.connector.connect(
                 # PHP
                 st.markdown("#### PHP (PDO):")
                 st.code(
-                    f"""$pdo = new PDO('mysql:host={conn_info['host']};port={conn_info['port']};dbname={conn_info['database']}', '{conn_info['user']}', 'YOUR_PASSWORD');""",
+                    f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={db_name}', '{DB_CONFIG['user']}', 'YOUR_PASSWORD');""",
                     language="php"
                 )
 
                 st.markdown("""
 ---
 - **Replace** `YOUR_PASSWORD` with your actual password.
-- If you used the optional username above, use that username and password here.
+- Use the username and database as shown above.
 - Make sure your app/server is allowed to reach `188.36.44.146:8081` (open on your firewall/router).
 ---
 """)
             except Exception as e:
-                st.error(f"Failed to create database, user, or tables: {e}")
+                st.error(f"Failed to create database or tables: {e}")
 
 # --- Page 2: Database Browser with Table Data Preview ---
 elif st.session_state.page == "Database Browser":
@@ -187,7 +156,7 @@ elif st.session_state.page == "Database Browser":
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
 
-# --- Page 3: Connection Info for Any Database ---
+# --- Page 3: Connection Info for Any Database (admin only) ---
 elif st.session_state.page == "Connection Info":
     st.title("Database Connection Info")
     try:
@@ -200,47 +169,36 @@ elif st.session_state.page == "Connection Info":
 
         if dbs:
             selected_db = st.selectbox("Select a database to show connection info:", dbs)
-            # Optionally: find all users with privileges to this database (simple version: just list all users)
-            try:
-                conn = get_connection()
-                cursor = conn.cursor()
-                cursor.execute("SELECT user, host FROM mysql.user WHERE host = '%'")
-                users = [row[0] for row in cursor.fetchall() if row[0] != 'mysql.infoschema']
-                cursor.close()
-                conn.close()
-                user_for_show = st.selectbox("Select username for connection info:", users)
-                st.markdown("### Connection Information")
-                st.code(
-                    f"mysql -h {DB_CONFIG['host']} -P {DB_CONFIG['port']} -u {user_for_show} -p {selected_db}",
-                    language="bash"
-                )
-                st.markdown("#### Python (mysql-connector-python):")
-                st.code(
-                    f"""import mysql.connector
+            st.markdown("### Connection Information (using admin user)")
+            st.code(
+                f"mysql -h {DB_CONFIG['host']} -P {DB_CONFIG['port']} -u {DB_CONFIG['user']} -p {selected_db}",
+                language="bash"
+            )
+            st.markdown("#### Python (mysql-connector-python):")
+            st.code(
+                f"""import mysql.connector
 
 conn = mysql.connector.connect(
     host="{DB_CONFIG['host']}",
     port={DB_CONFIG['port']},
-    user="{user_for_show}",
+    user="{DB_CONFIG['user']}",
     password="YOUR_PASSWORD",
     database="{selected_db}"
 )
 """, language="python"
-                )
-                st.markdown("#### PHP (PDO):")
-                st.code(
-                    f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={selected_db}', '{user_for_show}', 'YOUR_PASSWORD');""",
-                    language="php"
-                )
-                st.markdown("""
+            )
+            st.markdown("#### PHP (PDO):")
+            st.code(
+                f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={selected_db}', '{DB_CONFIG['user']}', 'YOUR_PASSWORD');""",
+                language="php"
+            )
+            st.markdown("""
 ---
 - **Replace** `YOUR_PASSWORD` with your actual password.
 - Use the username and database as shown above.
 - Make sure your app/server can reach `188.36.44.146:8081`.
 ---
 """)
-            except Exception as e:
-                st.error(f"Could not retrieve user list or connection info: {e}")
         else:
             st.info("No user-created databases found.")
     except Exception as e:
