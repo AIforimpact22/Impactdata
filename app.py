@@ -1,7 +1,6 @@
 import streamlit as st
 import mysql.connector
 import re
-import pandas as pd
 
 # --- Database configuration for admin access ---
 DB_CONFIG = {
@@ -17,34 +16,6 @@ def get_connection(db_name=None):
         cfg["database"] = db_name
     return mysql.connector.connect(**cfg)
 
-def show_connection_instructions(db, user, password, host, port):
-    st.markdown("#### Connection instructions for database `{}`:".format(db))
-    st.markdown("**MySQL Command Line:**")
-    st.code(f"mysql -h {host} -P {port} -u {user} -p {db}", language="bash")
-    st.write("Enter your password when prompted.")
-
-    st.markdown("**Python (mysql-connector-python):**")
-    st.code(
-        f"""import mysql.connector
-
-conn = mysql.connector.connect(
-    host="{host}",
-    port={port},
-    user="{user}",
-    password="{password}",
-    database="{db}"
-)
-# ... your code ...
-""", language="python"
-    )
-
-    st.markdown("**PHP (PDO):**")
-    st.code(
-        f"""$pdo = new PDO('mysql:host={host};port={port};dbname={db}', '{user}', '{password}');""",
-        language="php"
-    )
-    st.info("Replace `password` with your actual password as needed.")
-
 # --- Sidebar navigation ---
 st.sidebar.title("Navigation")
 if "page" not in st.session_state:
@@ -54,6 +25,8 @@ if st.sidebar.button("Provision Database"):
     st.session_state.page = "Provision Database"
 if st.sidebar.button("Database Browser"):
     st.session_state.page = "Database Browser"
+if st.sidebar.button("Connection Info"):
+    st.session_state.page = "Connection Info"
 
 # --- Page 1: Provision Database, User, and Tables ---
 if st.session_state.page == "Provision Database":
@@ -82,8 +55,6 @@ if st.session_state.page == "Provision Database":
                 cursor.execute(f"CREATE DATABASE `{db_name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
                 st.success(f"Database `{db_name}` created!")
 
-                connection_user = DB_CONFIG["user"]
-                connection_pass = DB_CONFIG["password"]
                 if new_user and new_password:
                     cursor.execute(
                         f"CREATE USER IF NOT EXISTS '{new_user}'@'%' IDENTIFIED BY '{new_password}';"
@@ -93,8 +64,6 @@ if st.session_state.page == "Provision Database":
                     )
                     cursor.execute("FLUSH PRIVILEGES;")
                     st.success(f"User `{new_user}` created and given access to `{db_name}`.")
-                    connection_user = new_user
-                    connection_pass = new_password
 
                 # Switch to the new database and execute table SQL
                 conn.database = db_name
@@ -107,20 +76,70 @@ if st.session_state.page == "Provision Database":
                 cursor.close()
                 conn.close()
 
-                # --- Show clear connection instructions for the created DB/user ---
+                # Show clear connection info for new DB/user
+                if new_user and new_password:
+                    conn_info = {
+                        "host": DB_CONFIG["host"],
+                        "port": DB_CONFIG["port"],
+                        "database": db_name,
+                        "user": new_user,
+                        "password": new_password,
+                    }
+                else:
+                    conn_info = {
+                        "host": DB_CONFIG["host"],
+                        "port": DB_CONFIG["port"],
+                        "database": db_name,
+                        "user": DB_CONFIG["user"],
+                        "password": DB_CONFIG["password"],
+                    }
                 st.markdown("---")
-                show_connection_instructions(
-                    db=db_name,
-                    user=connection_user,
-                    password=connection_pass,
-                    host=DB_CONFIG["host"],
-                    port=DB_CONFIG["port"]
+                st.success("🎉 Database and user successfully created!\n")
+                st.markdown("### How to Connect Remotely")
+                st.markdown("**From another device, use these connection settings:**")
+                
+                # MySQL CLI
+                st.markdown("#### MySQL Command Line:")
+                st.code(
+                    f"mysql -h {conn_info['host']} -P {conn_info['port']} -u {conn_info['user']} -p {conn_info['database']}",
+                    language="bash"
+                )
+                st.write("Enter your password when prompted.")
+
+                # Python
+                st.markdown("#### Python (mysql-connector-python):")
+                st.code(
+                    f"""import mysql.connector
+
+conn = mysql.connector.connect(
+    host="{conn_info['host']}",
+    port={conn_info['port']},
+    user="{conn_info['user']}",
+    password="YOUR_PASSWORD",
+    database="{conn_info['database']}"
+)
+# ... your code ...
+""", language="python"
                 )
 
+                # PHP
+                st.markdown("#### PHP (PDO):")
+                st.code(
+                    f"""$pdo = new PDO('mysql:host={conn_info['host']};port={conn_info['port']};dbname={conn_info['database']}', '{conn_info['user']}', 'YOUR_PASSWORD');""",
+                    language="php"
+                )
+
+                st.markdown("""
+---
+- **Replace** `YOUR_PASSWORD` with your actual password.
+- If you used the optional username above, use that username and password here.
+- Make sure your app/server is allowed to reach `188.36.44.146:8081` (open on your firewall/router).
+---
+""")
             except Exception as e:
                 st.error(f"Failed to create database, user, or tables: {e}")
 
-# --- Page 2: Database Browser with Table Data Preview and Connection Info ---
+# --- Page 2: Database Browser with Table Data Preview ---
 elif st.session_state.page == "Database Browser":
     st.title("Database Browser")
     try:
@@ -133,15 +152,6 @@ elif st.session_state.page == "Database Browser":
         if dbs:
             for db in dbs:
                 with st.expander(f"Database: `{db}`"):
-                    # Show connection info for admin user for each DB
-                    show_connection_instructions(
-                        db=db,
-                        user=DB_CONFIG["user"],
-                        password=DB_CONFIG["password"],
-                        host=DB_CONFIG["host"],
-                        port=DB_CONFIG["port"]
-                    )
-
                     try:
                         db_conn = get_connection(db)
                         db_cursor = db_conn.cursor()
@@ -149,7 +159,6 @@ elif st.session_state.page == "Database Browser":
                         tables = [r[0] for r in db_cursor.fetchall()]
                         db_cursor.close()
                         if tables:
-                            st.write("**Tables:**")
                             for table in tables:
                                 with st.expander(f"Table: **{table}**", expanded=False):
                                     preview = st.button(f"Show first 20 rows", key=f"preview_{db}_{table}")
@@ -162,6 +171,7 @@ elif st.session_state.page == "Database Browser":
                                             data = t_cursor.fetchall()
                                             t_cursor.close()
                                             t_conn.close()
+                                            import pandas as pd
                                             df = pd.DataFrame(data, columns=columns)
                                             st.dataframe(df)
                                         except Exception as err:
@@ -174,5 +184,64 @@ elif st.session_state.page == "Database Browser":
         else:
             st.info("No user-created databases found.")
         conn.close()
+    except Exception as e:
+        st.error(f"Error connecting to MySQL: {e}")
+
+# --- Page 3: Connection Info for Any Database ---
+elif st.session_state.page == "Connection Info":
+    st.title("Database Connection Info")
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SHOW DATABASES")
+        dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
+        cursor.close()
+        conn.close()
+
+        if dbs:
+            selected_db = st.selectbox("Select a database to show connection info:", dbs)
+            # Optionally: find all users with privileges to this database (simple version: just list all users)
+            try:
+                conn = get_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT user, host FROM mysql.user WHERE host = '%'")
+                users = [row[0] for row in cursor.fetchall() if row[0] != 'mysql.infoschema']
+                cursor.close()
+                conn.close()
+                user_for_show = st.selectbox("Select username for connection info:", users)
+                st.markdown("### Connection Information")
+                st.code(
+                    f"mysql -h {DB_CONFIG['host']} -P {DB_CONFIG['port']} -u {user_for_show} -p {selected_db}",
+                    language="bash"
+                )
+                st.markdown("#### Python (mysql-connector-python):")
+                st.code(
+                    f"""import mysql.connector
+
+conn = mysql.connector.connect(
+    host="{DB_CONFIG['host']}",
+    port={DB_CONFIG['port']},
+    user="{user_for_show}",
+    password="YOUR_PASSWORD",
+    database="{selected_db}"
+)
+""", language="python"
+                )
+                st.markdown("#### PHP (PDO):")
+                st.code(
+                    f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={selected_db}', '{user_for_show}', 'YOUR_PASSWORD');""",
+                    language="php"
+                )
+                st.markdown("""
+---
+- **Replace** `YOUR_PASSWORD` with your actual password.
+- Use the username and database as shown above.
+- Make sure your app/server can reach `188.36.44.146:8081`.
+---
+""")
+            except Exception as e:
+                st.error(f"Could not retrieve user list or connection info: {e}")
+        else:
+            st.info("No user-created databases found.")
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
