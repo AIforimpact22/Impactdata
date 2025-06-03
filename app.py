@@ -21,6 +21,7 @@ def get_connection(db_name=None):
 st.sidebar.title("Navigation")
 if "page" not in st.session_state:
     st.session_state.page = "Provision Database"
+
 if st.sidebar.button("Provision Database"):
     st.session_state.page = "Provision Database"
 if st.sidebar.button("Database Browser"):
@@ -30,7 +31,15 @@ if st.sidebar.button("Connection Info"):
 if st.sidebar.button("Delete"):
     st.session_state.page = "Delete"
 
-# --- Page 1: Provision Database and Tables ---
+# --- Simple rerun on delete flag ---
+def simple_rerun():
+    st.session_state.deleted = True
+    st.rerun()
+
+if "deleted" in st.session_state:
+    del st.session_state["deleted"]
+
+# --- Page 1: Provision Database and Tables (no new user) ---
 if st.session_state.page == "Provision Database":
     st.title("Provision New MySQL Database (+Tables)")
     with st.form("create_db_form"):
@@ -192,7 +201,7 @@ conn = mysql.connector.connect(
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
 
-# --- Page 4: Delete Database or Table (simple confirmation) ---
+# --- Page 4: Delete Database or Table (instant update!) ---
 elif st.session_state.page == "Delete":
     st.title("Delete Database or Table")
     try:
@@ -217,7 +226,7 @@ elif st.session_state.page == "Delete":
                             cursor.close()
                             conn.close()
                             st.success(f"Database `{selected_db}` deleted!")
-                            st.rerun()
+                            simple_rerun()
                         except Exception as e:
                             st.error(f"Could not delete database: {e}")
             # List tables for deletion
@@ -242,7 +251,7 @@ elif st.session_state.page == "Delete":
                                     cursor.close()
                                     conn.close()
                                     st.success(f"Table `{selected_table}` deleted from `{selected_db}`!")
-                                    st.rerun()
+                                    simple_rerun()
                                 except Exception as e:
                                     st.error(f"Could not delete table: {e}")
                     else:
