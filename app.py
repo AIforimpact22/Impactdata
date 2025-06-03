@@ -1,5 +1,6 @@
 import streamlit as st
 import mysql.connector
+import pandas as pd
 import re
 
 # --- Database configuration ---
@@ -102,7 +103,7 @@ if st.session_state.page == "Provision Database":
             except Exception as e:
                 st.error(f"Failed to create database, user, or tables: {e}")
 
-# --- Page 2: Database Browser ---
+# --- Page 2: Database Browser with Table Data Preview ---
 elif st.session_state.page == "Database Browser":
     st.title("Database Browser")
     try:
@@ -120,13 +121,26 @@ elif st.session_state.page == "Database Browser":
                         db_cursor = db_conn.cursor()
                         db_cursor.execute("SHOW TABLES")
                         tables = [r[0] for r in db_cursor.fetchall()]
+                        db_cursor.close()
                         if tables:
-                            st.write("Tables:")
                             for table in tables:
-                                st.markdown(f"- **{table}**")
+                                with st.expander(f"Table: **{table}**", expanded=False):
+                                    preview = st.button(f"Show first 20 rows", key=f"preview_{db}_{table}")
+                                    if preview:
+                                        try:
+                                            t_conn = get_connection(db)
+                                            t_cursor = t_conn.cursor()
+                                            t_cursor.execute(f"SELECT * FROM `{table}` LIMIT 20")
+                                            columns = [desc[0] for desc in t_cursor.description]
+                                            data = t_cursor.fetchall()
+                                            t_cursor.close()
+                                            t_conn.close()
+                                            df = pd.DataFrame(data, columns=columns)
+                                            st.dataframe(df)
+                                        except Exception as err:
+                                            st.error(f"Could not fetch data from `{table}`: {err}")
                         else:
                             st.info("No tables in this database.")
-                        db_cursor.close()
                         db_conn.close()
                     except Exception as err:
                         st.error(f"Could not show tables for `{db}`: {err}")
