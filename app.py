@@ -27,11 +27,12 @@ if st.sidebar.button("Database Browser"):
     st.session_state.page = "Database Browser"
 if st.sidebar.button("Connection Info"):
     st.session_state.page = "Connection Info"
+if st.sidebar.button("Delete"):
+    st.session_state.page = "Delete"
 
 # --- Page 1: Provision Database and Tables (no new user) ---
 if st.session_state.page == "Provision Database":
     st.title("Provision New MySQL Database (+Tables)")
-
     with st.form("create_db_form"):
         db_name = st.text_input("Database name (letters, numbers, underscores)")
         tables_sql = st.text_area(
@@ -39,7 +40,6 @@ if st.session_state.page == "Provision Database":
             "CREATE TABLE users (\n  id INT PRIMARY KEY AUTO_INCREMENT,\n  name VARCHAR(50),\n  email VARCHAR(100)\n);"
         )
         submitted = st.form_submit_button("Create Database and Tables")
-
     if submitted:
         if not db_name.replace("_", "").isalnum() or " " in db_name:
             st.error("Invalid database name! Use only letters, numbers, underscores.")
@@ -49,8 +49,6 @@ if st.session_state.page == "Provision Database":
                 cursor = conn.cursor()
                 cursor.execute(f"CREATE DATABASE `{db_name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
                 st.success(f"Database `{db_name}` created!")
-
-                # Switch to the new database and execute table SQL
                 conn.database = db_name
                 cursor = conn.cursor()
                 stmts = [s.strip() for s in re.split(r';\s*', tables_sql) if s.strip()]
@@ -60,22 +58,16 @@ if st.session_state.page == "Provision Database":
                 st.success("Table(s) created successfully!")
                 cursor.close()
                 conn.close()
-
-                # Show clear connection info for new DB with admin user
                 st.markdown("---")
                 st.success("🎉 Database successfully created!\n")
                 st.markdown("### How to Connect Remotely")
                 st.markdown("**From another device, use these connection settings:**")
-                
-                # MySQL CLI
                 st.markdown("#### MySQL Command Line:")
                 st.code(
                     f"mysql -h {DB_CONFIG['host']} -P {DB_CONFIG['port']} -u {DB_CONFIG['user']} -p {db_name}",
                     language="bash"
                 )
                 st.write("Enter your password when prompted.")
-
-                # Python
                 st.markdown("#### Python (mysql-connector-python):")
                 st.code(
                     f"""import mysql.connector
@@ -90,14 +82,11 @@ conn = mysql.connector.connect(
 # ... your code ...
 """, language="python"
                 )
-
-                # PHP
                 st.markdown("#### PHP (PDO):")
                 st.code(
                     f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={db_name}', '{DB_CONFIG['user']}', 'YOUR_PASSWORD');""",
                     language="php"
                 )
-
                 st.markdown("""
 ---
 - **Replace** `YOUR_PASSWORD` with your actual password.
@@ -117,7 +106,6 @@ elif st.session_state.page == "Database Browser":
         cursor.execute("SHOW DATABASES")
         dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
         cursor.close()
-
         if dbs:
             for db in dbs:
                 with st.expander(f"Database: `{db}`"):
@@ -166,7 +154,6 @@ elif st.session_state.page == "Connection Info":
         dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
         cursor.close()
         conn.close()
-
         if dbs:
             selected_db = st.selectbox("Select a database to show connection info:", dbs)
             st.markdown("### Connection Information (using admin user)")
@@ -199,6 +186,65 @@ conn = mysql.connector.connect(
 - Make sure your app/server can reach `188.36.44.146:8081`.
 ---
 """)
+        else:
+            st.info("No user-created databases found.")
+    except Exception as e:
+        st.error(f"Error connecting to MySQL: {e}")
+
+# --- Page 4: Delete Database or Table ---
+elif st.session_state.page == "Delete":
+    st.title("Delete Database or Table")
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SHOW DATABASES")
+        dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
+        cursor.close()
+        conn.close()
+
+        if dbs:
+            selected_db = st.selectbox("Select database:", dbs, key="delete_db_select")
+            # Delete whole database
+            if st.button(f"❌ Delete ENTIRE database `{selected_db}`", key="delete_db_btn"):
+                if st.confirm(f"Are you absolutely sure you want to delete database `{selected_db}` and ALL its data?"):
+                    try:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        cursor.execute(f"DROP DATABASE `{selected_db}`")
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        st.success(f"Database `{selected_db}` deleted!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Could not delete database: {e}")
+            # List tables for deletion
+            try:
+                conn = get_connection(selected_db)
+                cursor = conn.cursor()
+                cursor.execute("SHOW TABLES")
+                tables = [r[0] for r in cursor.fetchall()]
+                cursor.close()
+                conn.close()
+                if tables:
+                    selected_table = st.selectbox("Select table to delete:", tables, key="delete_table_select")
+                    if st.button(f"Delete table `{selected_table}` from `{selected_db}`", key="delete_table_btn"):
+                        if st.confirm(f"Delete table `{selected_table}` in database `{selected_db}`?"):
+                            try:
+                                conn = get_connection(selected_db)
+                                cursor = conn.cursor()
+                                cursor.execute(f"DROP TABLE `{selected_table}`")
+                                conn.commit()
+                                cursor.close()
+                                conn.close()
+                                st.success(f"Table `{selected_table}` deleted from `{selected_db}`!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Could not delete table: {e}")
+                else:
+                    st.info("No tables in this database to delete.")
+            except Exception as e:
+                st.error(f"Could not fetch tables: {e}")
         else:
             st.info("No user-created databases found.")
     except Exception as e:
