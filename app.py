@@ -1,5 +1,6 @@
 import streamlit as st
 import mysql.connector
+import pandas as pd
 import re
 
 # --- Database configuration for admin access ---
@@ -97,7 +98,7 @@ conn = mysql.connector.connect(
             except Exception as e:
                 st.error(f"Failed to create database or tables: {e}")
 
-# --- Page 2: Database Browser with Table Data Preview ---
+# --- Page 2: Database Browser with Table Data Preview (no nested expanders!) ---
 elif st.session_state.page == "Database Browser":
     st.title("Database Browser")
     try:
@@ -106,41 +107,42 @@ elif st.session_state.page == "Database Browser":
         cursor.execute("SHOW DATABASES")
         dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
         cursor.close()
+        conn.close()
         if dbs:
-            for db in dbs:
-                with st.expander(f"Database: `{db}`"):
-                    try:
-                        db_conn = get_connection(db)
-                        db_cursor = db_conn.cursor()
-                        db_cursor.execute("SHOW TABLES")
-                        tables = [r[0] for r in db_cursor.fetchall()]
-                        db_cursor.close()
-                        if tables:
-                            for table in tables:
-                                with st.expander(f"Table: **{table}**", expanded=False):
-                                    preview = st.button(f"Show first 20 rows", key=f"preview_{db}_{table}")
-                                    if preview:
-                                        try:
-                                            t_conn = get_connection(db)
-                                            t_cursor = t_conn.cursor()
-                                            t_cursor.execute(f"SELECT * FROM `{table}` LIMIT 20")
-                                            columns = [desc[0] for desc in t_cursor.description]
-                                            data = t_cursor.fetchall()
-                                            t_cursor.close()
-                                            t_conn.close()
-                                            import pandas as pd
-                                            df = pd.DataFrame(data, columns=columns)
-                                            st.dataframe(df)
-                                        except Exception as err:
-                                            st.error(f"Could not fetch data from `{table}`: {err}")
-                        else:
-                            st.info("No tables in this database.")
-                        db_conn.close()
-                    except Exception as err:
-                        st.error(f"Could not show tables for `{db}`: {err}")
+            selected_db = st.selectbox("Select a database to browse:", dbs, key="browser_db_select")
+            try:
+                db_conn = get_connection(selected_db)
+                db_cursor = db_conn.cursor()
+                db_cursor.execute("SHOW TABLES")
+                tables = [r[0] for r in db_cursor.fetchall()]
+                db_cursor.close()
+                db_conn.close()
+                if tables:
+                    st.write(f"**Tables in `{selected_db}`:**")
+                    for table in tables:
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            st.write(f"**{table}**")
+                        with col2:
+                            if st.button(f"Show first 20 rows", key=f"preview_{selected_db}_{table}"):
+                                try:
+                                    t_conn = get_connection(selected_db)
+                                    t_cursor = t_conn.cursor()
+                                    t_cursor.execute(f"SELECT * FROM `{table}` LIMIT 20")
+                                    columns = [desc[0] for desc in t_cursor.description]
+                                    data = t_cursor.fetchall()
+                                    t_cursor.close()
+                                    t_conn.close()
+                                    df = pd.DataFrame(data, columns=columns)
+                                    st.dataframe(df, use_container_width=True)
+                                except Exception as err:
+                                    st.error(f"Could not fetch data from `{table}`: {err}")
+                else:
+                    st.info("No tables in this database.")
+            except Exception as err:
+                st.error(f"Could not show tables for `{selected_db}`: {err}")
         else:
             st.info("No user-created databases found.")
-        conn.close()
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
 
@@ -155,7 +157,7 @@ elif st.session_state.page == "Connection Info":
         cursor.close()
         conn.close()
         if dbs:
-            selected_db = st.selectbox("Select a database to show connection info:", dbs)
+            selected_db = st.selectbox("Select a database to show connection info:", dbs, key="conn_db_select")
             st.markdown("### Connection Information (using admin user)")
             st.code(
                 f"mysql -h {DB_CONFIG['host']} -P {DB_CONFIG['port']} -u {DB_CONFIG['user']} -p {selected_db}",
@@ -201,12 +203,11 @@ elif st.session_state.page == "Delete":
         dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
         cursor.close()
         conn.close()
-
         if dbs:
             selected_db = st.selectbox("Select database:", dbs, key="delete_db_select")
             # Delete whole database
             if st.button(f"❌ Delete ENTIRE database `{selected_db}`", key="delete_db_btn"):
-                if st.confirm(f"Are you absolutely sure you want to delete database `{selected_db}` and ALL its data?"):
+                if st.text_input(f"Type DELETE to confirm deletion of database `{selected_db}`", key="db_del_confirm") == "DELETE":
                     try:
                         conn = get_connection()
                         cursor = conn.cursor()
@@ -218,6 +219,8 @@ elif st.session_state.page == "Delete":
                         st.rerun()
                     except Exception as e:
                         st.error(f"Could not delete database: {e}")
+                else:
+                    st.warning("You must type DELETE to confirm.")
             # List tables for deletion
             try:
                 conn = get_connection(selected_db)
@@ -229,7 +232,7 @@ elif st.session_state.page == "Delete":
                 if tables:
                     selected_table = st.selectbox("Select table to delete:", tables, key="delete_table_select")
                     if st.button(f"Delete table `{selected_table}` from `{selected_db}`", key="delete_table_btn"):
-                        if st.confirm(f"Delete table `{selected_table}` in database `{selected_db}`?"):
+                        if st.text_input(f"Type DELETE to confirm deletion of table `{selected_table}`", key="table_del_confirm") == "DELETE":
                             try:
                                 conn = get_connection(selected_db)
                                 cursor = conn.cursor()
@@ -241,6 +244,8 @@ elif st.session_state.page == "Delete":
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Could not delete table: {e}")
+                        else:
+                            st.warning("You must type DELETE to confirm.")
                 else:
                     st.info("No tables in this database to delete.")
             except Exception as e:
