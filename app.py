@@ -3,7 +3,6 @@ import mysql.connector
 import pandas as pd
 import re
 
-# --- Database configuration ---
 DB_CONFIG = {
     "host": "188.36.44.146",
     "port": 8081,
@@ -27,7 +26,7 @@ if st.sidebar.button("Provision Database"):
 if st.sidebar.button("Database Browser"):
     st.session_state.page = "Database Browser"
 
-# --- Page 1: Provision Database and Tables ---
+# --- Provision Database and Tables (same as before) ---
 if st.session_state.page == "Provision Database":
     st.title("Provision New MySQL Database (+Tables)")
 
@@ -48,7 +47,6 @@ if st.session_state.page == "Provision Database":
             st.error("Invalid username! Use only letters, numbers, underscores.")
         else:
             try:
-                # Create database and (optionally) user
                 conn = get_connection()
                 cursor = conn.cursor()
                 cursor.execute(f"CREATE DATABASE `{db_name}` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
@@ -64,7 +62,6 @@ if st.session_state.page == "Provision Database":
                     cursor.execute("FLUSH PRIVILEGES;")
                     st.success(f"User `{new_user}` created and given access to `{db_name}`.")
 
-                # Switch to the new database and execute table SQL
                 conn.database = db_name
                 cursor = conn.cursor()
                 stmts = [s.strip() for s in re.split(r';\s*', tables_sql) if s.strip()]
@@ -75,7 +72,6 @@ if st.session_state.page == "Provision Database":
                 cursor.close()
                 conn.close()
 
-                # Show connection info for new DB/user
                 if new_user and new_password:
                     conn_info = {
                         "host": DB_CONFIG["host"],
@@ -103,7 +99,7 @@ if st.session_state.page == "Provision Database":
             except Exception as e:
                 st.error(f"Failed to create database, user, or tables: {e}")
 
-# --- Page 2: Database Browser with Table Data Preview ---
+# --- Database Browser: NO nested expanders, just lists and previews ---
 elif st.session_state.page == "Database Browser":
     st.title("Database Browser")
     try:
@@ -112,40 +108,39 @@ elif st.session_state.page == "Database Browser":
         cursor.execute("SHOW DATABASES")
         dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
         cursor.close()
+        conn.close()
 
         if dbs:
-            for db in dbs:
-                with st.expander(f"Database: `{db}`"):
-                    try:
-                        db_conn = get_connection(db)
-                        db_cursor = db_conn.cursor()
-                        db_cursor.execute("SHOW TABLES")
-                        tables = [r[0] for r in db_cursor.fetchall()]
-                        db_cursor.close()
-                        if tables:
-                            for table in tables:
-                                with st.expander(f"Table: **{table}**", expanded=False):
-                                    preview = st.button(f"Show first 20 rows", key=f"preview_{db}_{table}")
-                                    if preview:
-                                        try:
-                                            t_conn = get_connection(db)
-                                            t_cursor = t_conn.cursor()
-                                            t_cursor.execute(f"SELECT * FROM `{table}` LIMIT 20")
-                                            columns = [desc[0] for desc in t_cursor.description]
-                                            data = t_cursor.fetchall()
-                                            t_cursor.close()
-                                            t_conn.close()
-                                            df = pd.DataFrame(data, columns=columns)
-                                            st.dataframe(df)
-                                        except Exception as err:
-                                            st.error(f"Could not fetch data from `{table}`: {err}")
-                        else:
-                            st.info("No tables in this database.")
-                        db_conn.close()
-                    except Exception as err:
-                        st.error(f"Could not show tables for `{db}`: {err}")
+            selected_db = st.selectbox("Choose a database", dbs)
+            if selected_db:
+                try:
+                    db_conn = get_connection(selected_db)
+                    db_cursor = db_conn.cursor()
+                    db_cursor.execute("SHOW TABLES")
+                    tables = [r[0] for r in db_cursor.fetchall()]
+                    db_cursor.close()
+                    db_conn.close()
+                    if tables:
+                        selected_table = st.selectbox(f"Tables in `{selected_db}`", tables)
+                        if selected_table:
+                            if st.button(f"Show first 20 rows of `{selected_table}`"):
+                                try:
+                                    t_conn = get_connection(selected_db)
+                                    t_cursor = t_conn.cursor()
+                                    t_cursor.execute(f"SELECT * FROM `{selected_table}` LIMIT 20")
+                                    columns = [desc[0] for desc in t_cursor.description]
+                                    data = t_cursor.fetchall()
+                                    t_cursor.close()
+                                    t_conn.close()
+                                    df = pd.DataFrame(data, columns=columns)
+                                    st.dataframe(df)
+                                except Exception as err:
+                                    st.error(f"Could not fetch data from `{selected_table}`: {err}")
+                    else:
+                        st.info("No tables in this database.")
+                except Exception as err:
+                    st.error(f"Could not show tables for `{selected_db}`: {err}")
         else:
             st.info("No user-created databases found.")
-        conn.close()
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
