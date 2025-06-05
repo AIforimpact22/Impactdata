@@ -3,6 +3,23 @@ import mysql.connector
 import pandas as pd
 import re
 
+# --- ACCESS CODE GATE ---
+ACCESS_CODE = "your_secret_code_here"   # <-- Set your real code!
+
+if "access_granted" not in st.session_state:
+    st.session_state.access_granted = False
+
+if not st.session_state.access_granted:
+    st.title("🔒 Access Protected")
+    code = st.text_input("Enter Access Code:", type="password")
+    if st.button("Unlock"):
+        if code == ACCESS_CODE:
+            st.session_state.access_granted = True
+            st.experimental_rerun()
+        else:
+            st.error("Invalid code. Please try again.")
+    st.stop()
+
 # --- Database configuration for admin access ---
 DB_CONFIG = {
     "host": "188.36.44.146",
@@ -31,7 +48,6 @@ if st.sidebar.button("Connection Info"):
 if st.sidebar.button("Delete"):
     st.session_state.page = "Delete"
 
-# --- Simple rerun on delete flag ---
 def simple_rerun():
     st.session_state.deleted = True
     st.rerun()
