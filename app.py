@@ -4,7 +4,7 @@ import pandas as pd
 import re
 
 # --- ACCESS CODE GATE ---
-ACCESS_CODE = "your_secret_code_here"   # <-- Set your real code!
+ACCESS_CODE = "meer"   # <-- Set your real code!
 
 if "access_granted" not in st.session_state:
     st.session_state.access_granted = False
