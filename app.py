@@ -15,7 +15,7 @@ if not st.session_state.access_granted:
     if st.button("Unlock"):
         if code == ACCESS_CODE:
             st.session_state.access_granted = True
-            st.experimental_rerun()
+            st_rerun()
         else:
             st.error("Invalid code. Please try again.")
     st.stop()
