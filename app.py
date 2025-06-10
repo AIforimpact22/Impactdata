@@ -109,7 +109,7 @@ conn = mysql.connector.connect(
                 )
                 st.markdown("#### PHP (PDO):")
                 st.code(
-                    f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={db_name}', '{DB_CONFIG['user']}', 'YOUR_PASSWORD');""",
+                    f"""$pdo = new PDO('mysql:host={DB_CONFIG['host']};port={DB_CONFIG['port']};dbname={db_name}', '{DB_CONFIG['user']}', 'Noway2025');""",
                     language="php"
                 )
                 st.markdown("""
