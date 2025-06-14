@@ -15,7 +15,7 @@ if not st.session_state.access_granted:
     if st.button("Unlock"):
         if code == ACCESS_CODE:
             st.session_state.access_granted = True
-            st_rerun()
+            st.experimental_rerun()
         else:
             st.error("Invalid code. Please try again.")
     st.stop()
@@ -43,6 +43,8 @@ if st.sidebar.button("Provision Database"):
     st.session_state.page = "Provision Database"
 if st.sidebar.button("Database Browser"):
     st.session_state.page = "Database Browser"
+if st.sidebar.button("Edit Database"):
+    st.session_state.page = "Edit Database"
 if st.sidebar.button("Connection Info"):
     st.session_state.page = "Connection Info"
 if st.sidebar.button("Delete"):
@@ -55,7 +57,7 @@ def simple_rerun():
 if "deleted" in st.session_state:
     del st.session_state["deleted"]
 
-# --- Page 1: Provision Database and Tables (no new user) ---
+# --- Page 1: Provision Database and Tables ---
 if st.session_state.page == "Provision Database":
     st.title("Provision New MySQL Database (+Tables)")
     with st.form("create_db_form"):
@@ -170,7 +172,80 @@ elif st.session_state.page == "Database Browser":
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
 
-# --- Page 3: Connection Info for Any Database (admin only) ---
+# --- Page 3: Edit Database (NEW!) ---
+elif st.session_state.page == "Edit Database":
+    st.title("Edit Database/Table Data")
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SHOW DATABASES")
+        dbs = [row[0] for row in cursor.fetchall() if row[0] not in ['information_schema', 'mysql', 'performance_schema', 'sys']]
+        cursor.close()
+        conn.close()
+        if dbs:
+            selected_db = st.selectbox("Database", dbs, key="edit_db_select")
+            try:
+                db_conn = get_connection(selected_db)
+                db_cursor = db_conn.cursor()
+                db_cursor.execute("SHOW TABLES")
+                tables = [r[0] for r in db_cursor.fetchall()]
+                db_cursor.close()
+                db_conn.close()
+                if tables:
+                    selected_table = st.selectbox("Table", tables, key="edit_table_select")
+                    edit_limit = st.number_input("Rows to load (max):", min_value=1, max_value=200, value=20, step=1)
+                    t_conn = get_connection(selected_db)
+                    t_cursor = t_conn.cursor()
+                    t_cursor.execute(f"SELECT * FROM `{selected_table}` LIMIT {edit_limit}")
+                    columns = [desc[0] for desc in t_cursor.description]
+                    data = t_cursor.fetchall()
+                    t_cursor.close()
+                    t_conn.close()
+                    df = pd.DataFrame(data, columns=columns)
+                    if not df.empty:
+                        st.info("Edit any cell below and click **Save Changes**. (Primary Key required!)")
+                        pk_guess = columns[0] if 'id' in columns[0].lower() else columns[0]  # Just a best guess
+                        pk_col = st.selectbox("Primary key column", columns, index=columns.index(pk_guess) if pk_guess in columns else 0)
+                        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="edit_df")
+                        if st.button("Save Changes"):
+                            changes = []
+                            for i, row in edited_df.iterrows():
+                                orig_row = df.iloc[i]
+                                for col in columns:
+                                    if row[col] != orig_row[col]:
+                                        # Prepare the UPDATE statement
+                                        changes.append((col, row[col], pk_col, row[pk_col]))
+                            if not changes:
+                                st.info("No changes detected.")
+                            else:
+                                try:
+                                    t_conn = get_connection(selected_db)
+                                    t_cursor = t_conn.cursor()
+                                    for col, new_val, pk, pk_val in changes:
+                                        # Use %s to prevent SQL injection; handle None/null as well
+                                        t_cursor.execute(
+                                            f"UPDATE `{selected_table}` SET `{col}`=%s WHERE `{pk}`=%s",
+                                            (new_val, pk_val)
+                                        )
+                                    t_conn.commit()
+                                    t_cursor.close()
+                                    t_conn.close()
+                                    st.success(f"{len(changes)} change(s) saved successfully!")
+                                    st.experimental_rerun()
+                                except Exception as e:
+                                    st.error(f"Error saving changes: {e}")
+                    else:
+                        st.warning("Table is empty. Nothing to edit.")
+                else:
+                    st.info("No tables in this database.")
+            except Exception as e:
+                st.error(f"Could not fetch tables: {e}")
+        else:
+            st.info("No user-created databases found.")
+    except Exception as e:
+        st.error(f"Error connecting to MySQL: {e}")
+
+# --- Page 4: Connection Info for Any Database (admin only) ---
 elif st.session_state.page == "Connection Info":
     st.title("Database Connection Info")
     try:
@@ -217,7 +292,7 @@ conn = mysql.connector.connect(
     except Exception as e:
         st.error(f"Error connecting to MySQL: {e}")
 
-# --- Page 4: Delete Database or Table (instant update!) ---
+# --- Page 5: Delete Database or Table (instant update!) ---
 elif st.session_state.page == "Delete":
     st.title("Delete Database or Table")
     try:
