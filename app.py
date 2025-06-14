@@ -15,7 +15,7 @@ if not st.session_state.access_granted:
     if st.button("Unlock"):
         if code == ACCESS_CODE:
             st.session_state.access_granted = True
-            st.experimental_rerun()
+            st.rerun()  # <--- FIXED: use st.rerun()
         else:
             st.error("Invalid code. Please try again.")
     st.stop()
@@ -52,7 +52,7 @@ if st.sidebar.button("Delete"):
 
 def simple_rerun():
     st.session_state.deleted = True
-    st.rerun()
+    st.rerun()  # <--- FIXED
 
 if "deleted" in st.session_state:
     del st.session_state["deleted"]
@@ -204,7 +204,7 @@ elif st.session_state.page == "Edit Database":
                     df = pd.DataFrame(data, columns=columns)
                     if not df.empty:
                         st.info("Edit any cell below and click **Save Changes**. (Primary Key required!)")
-                        pk_guess = columns[0] if 'id' in columns[0].lower() else columns[0]  # Just a best guess
+                        pk_guess = columns[0] if 'id' in columns[0].lower() else columns[0]
                         pk_col = st.selectbox("Primary key column", columns, index=columns.index(pk_guess) if pk_guess in columns else 0)
                         edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="edit_df")
                         if st.button("Save Changes"):
@@ -213,7 +213,6 @@ elif st.session_state.page == "Edit Database":
                                 orig_row = df.iloc[i]
                                 for col in columns:
                                     if row[col] != orig_row[col]:
-                                        # Prepare the UPDATE statement
                                         changes.append((col, row[col], pk_col, row[pk_col]))
                             if not changes:
                                 st.info("No changes detected.")
@@ -222,7 +221,6 @@ elif st.session_state.page == "Edit Database":
                                     t_conn = get_connection(selected_db)
                                     t_cursor = t_conn.cursor()
                                     for col, new_val, pk, pk_val in changes:
-                                        # Use %s to prevent SQL injection; handle None/null as well
                                         t_cursor.execute(
                                             f"UPDATE `{selected_table}` SET `{col}`=%s WHERE `{pk}`=%s",
                                             (new_val, pk_val)
@@ -231,7 +229,7 @@ elif st.session_state.page == "Edit Database":
                                     t_cursor.close()
                                     t_conn.close()
                                     st.success(f"{len(changes)} change(s) saved successfully!")
-                                    st.experimental_rerun()
+                                    st.rerun()  # <--- FIXED
                                 except Exception as e:
                                     st.error(f"Error saving changes: {e}")
                     else:
@@ -320,7 +318,6 @@ elif st.session_state.page == "Delete":
                             simple_rerun()
                         except Exception as e:
                             st.error(f"Could not delete database: {e}")
-            # List tables for deletion
             with col_table:
                 try:
                     conn = get_connection(selected_db)
