@@ -1,19 +1,11 @@
 """
-Edit-Database page for the Streamlit app.
+edit.py  –  Table spreadsheet editor  +  free-form SQL editor.
 
-Two tabs:
-    • 📝 Data Editor        – edit row values (original behaviour)
-    • 🛠️ Table-definition   – run DDL / CREATE / ALTER statements
-
-Usage from app.py
------------------
-    from edit import render_edit_page
+Public API (used by app.py):
     render_edit_page(get_connection, simple_rerun)
 
-Parameters expected
--------------------
-get_connection(db_name: str | None) → mysql.connector connection
-simple_rerun()                      → calls st.rerun() after setting a flag
+- get_connection(db_name:str|None)  → mysql.connector connection
+- simple_rerun()                    → sets any flag then st.rerun()
 """
 
 from __future__ import annotations
@@ -23,12 +15,13 @@ import pandas as pd
 
 EXCLUDED_SYS_DBS = ("information_schema", "mysql", "performance_schema", "sys")
 
-
+# --------------------------------------------------------------------------- #
+#  Main entry point                                                           #
+# --------------------------------------------------------------------------- #
 def render_edit_page(get_connection, simple_rerun):
-    """Main entry displayed by app.py."""
     st.title("Edit Database")
 
-    # ── select database ────────────────────────────────────────────────────
+    # ── choose DATABASE first ───────────────────────────────────────────────
     try:
         conn = get_connection(); cur = conn.cursor()
         cur.execute("SHOW DATABASES")
@@ -37,19 +30,16 @@ def render_edit_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
     if not dbs:
-        st.info("No user-created databases found.")
-        return
-
+        st.info("No user-created databases."); return
     db = st.selectbox("Database", dbs)
 
-    # ── tabs: Data vs SQL ──────────────────────────────────────────────────
-    tab_data, tab_sql = st.tabs(["📝 Data Editor", "🛠️ Table-definition SQL"])
+    # ── two editing modes (tabs) ────────────────────────────────────────────
+    tab_spreadsheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
-    # ======================================================================
-    # TAB 1  –  DATA EDITOR
-    # ======================================================================
-    with tab_data:
-        # fetch list of tables ------------------------------------------------
+    # --------------------------------------------------------------------- #
+    #  TAB 1 – Spreadsheet-style editor (existing behaviour)                #
+    # --------------------------------------------------------------------- #
+    with tab_spreadsheet:
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute("SHOW TABLES")
@@ -58,121 +48,97 @@ def render_edit_page(get_connection, simple_rerun):
             cur.close(); conn.close()
 
         if not tables:
-            st.info("No tables in this database.")
-        else:
-            tbl = st.selectbox("Table", tables, key="data_tbl")
-            limit = st.number_input("Rows to load", 1, 200, 20, key="row_limit")
+            st.info("No tables in this DB."); return
+        tbl = st.selectbox("Table", tables)
 
-            # pull rows for editing
-            conn = get_connection(db); cur = conn.cursor()
-            cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
-            cols = [d[0] for d in cur.description]
-            rows = cur.fetchall()
-            cur.close(); conn.close()
+        limit = st.number_input("Rows to load", 1, 200, 20)
+        conn = get_connection(db); cur = conn.cursor()
+        cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
+        cols = [d[0] for d in cur.description]
+        rows = cur.fetchall()
+        cur.close(); conn.close()
 
-            if not rows:
-                st.warning("Table is empty.")
-            else:
-                pk_guess = cols[0] if "id" in cols[0].lower() else cols[0]
-                pk_col = st.selectbox(
-                    "Primary-key column", cols, index=cols.index(pk_guess)
-                )
+        if not rows:
+            st.warning("Table is empty."); return
 
-                edited_df = st.data_editor(
-                    pd.DataFrame(rows, columns=cols),
-                    num_rows="dynamic",
-                    use_container_width=True,
-                    key="editor",
-                )
+        pk_guess = cols[0] if "id" in cols[0].lower() else cols[0]
+        pk_col = st.selectbox("Primary-key column", cols, index=cols.index(pk_guess))
 
-                if st.button("Save Changes"):
-                    changes = []
-                    for i, row in edited_df.iterrows():
-                        orig = rows[i]
-                        for c in cols:
-                            if row[c] != orig[cols.index(c)]:
-                                changes.append((c, row[c], pk_col, row[pk_col]))
+        edited_df = st.data_editor(
+            pd.DataFrame(rows, columns=cols),
+            num_rows="dynamic",
+            use_container_width=True,
+        )
 
-                    if not changes:
-                        st.info("No changes detected.")
-                    else:
-                        try:
-                            conn = get_connection(db); cur = conn.cursor()
-                            for col, new_val, pk, pk_val in changes:
-                                cur.execute(
-                                    f"UPDATE `{tbl}` SET `{col}`=%s WHERE `{pk}`=%s",
-                                    (new_val, pk_val),
-                                )
-                            conn.commit()
-                            st.success(f"{len(changes)} change(s) saved.")
-                            simple_rerun()
-                        except Exception as e:
-                            st.error(f"Error saving: {e}")
-                        finally:
-                            cur.close(); conn.close()
+        if st.button("Save Changes", key="save_changes_btn"):
+            changes = []
+            for i, row in edited_df.iterrows():
+                orig = rows[i]
+                for c in cols:
+                    if row[c] != orig[cols.index(c)]:
+                        changes.append((c, row[c], pk_col, row[pk_col]))
 
-    # ======================================================================
-    # TAB 2  –  TABLE-DEFINITION / DDL SQL
-    # ======================================================================
+            if not changes:
+                st.info("Nothing changed."); return
+
+            try:
+                conn = get_connection(db); cur = conn.cursor()
+                for col, new_val, pk, pk_val in changes:
+                    cur.execute(
+                        f"UPDATE `{tbl}` SET `{col}`=%s WHERE `{pk}`=%s",
+                        (new_val, pk_val),
+                    )
+                conn.commit()
+                st.success(f"{len(changes)} change(s) saved.")
+                simple_rerun()
+            except Exception as e:
+                st.error(e)
+            finally:
+                cur.close(); conn.close()
+
+    # --------------------------------------------------------------------- #
+    #  TAB 2 – Free SQL editor                                              #
+    # --------------------------------------------------------------------- #
     with tab_sql:
-        st.caption(
-            "Run CREATE / ALTER statements to change table structures. "
-            "Multiple statements are allowed; each **must** end with a semicolon."
-        )
+        st.subheader(f"Run custom SQL against `{db}`")
 
-        # optional helper: show CREATE TABLE -------------------------------
-        try:
-            conn = get_connection(db); cur = conn.cursor()
-            cur.execute("SHOW TABLES")
-            tables_sql = [t[0] for t in cur.fetchall()]
-        finally:
-            cur.close(); conn.close()
+        default_sql = "-- Example:\n" \
+                      "SELECT * FROM your_table LIMIT 10;\n\n" \
+                      "-- UPDATE your_table SET col = 'value' WHERE id = 1;"
+        sql_code = st.text_area("SQL statements (one or more, separated by semicolons)",
+                                value=default_sql, height=200)
 
-        if tables_sql:
-            helper_col1, helper_col2 = st.columns([2, 1])
-            with helper_col1:
-                showdef_tbl = st.selectbox(
-                    "Show current definition for table (optional)",
-                    ["<Choose table>"] + tables_sql,
-                    key="ddl_tbl",
-                )
-            with helper_col2:
-                if (
-                    showdef_tbl
-                    and showdef_tbl != "<Choose table>"
-                    and st.button("Show CREATE TABLE", key="btn_show_create")
-                ):
-                    try:
-                        conn = get_connection(db); cur = conn.cursor()
-                        cur.execute(f"SHOW CREATE TABLE `{showdef_tbl}`")
-                        create_sql = cur.fetchone()[1]
-                        st.code(create_sql, language="sql")
-                    except Exception as e:
-                        st.error(e)
-                    finally:
-                        cur.close(); conn.close()
+        execute_btn = st.button("Execute", key="execute_sql_btn")
 
-        # SQL input ---------------------------------------------------------
-        ddl = st.text_area(
-            "Table-definition SQL",
-            "ALTER TABLE your_table\n  ADD COLUMN new_col INT;",
-            height=200,
-            key="ddl_sql",
-        )
+        if execute_btn:
+            statements = [s.strip() for s in re.split(r";\s*", sql_code) if s.strip()]
+            if not statements:
+                st.warning("Nothing to run."); return
 
-        if st.button("Apply DDL"):
-            stmts = [s.strip() for s in re.split(r";\s*", ddl) if s.strip()]
-            if not stmts:
-                st.info("No SQL statements found.")
-            else:
-                try:
-                    conn = get_connection(db); cur = conn.cursor()
-                    for stmt in stmts:
-                        cur.execute(stmt + ";")
+            try:
+                conn = get_connection(db); cur = conn.cursor()
+                any_write = False
+
+                for idx, stmt in enumerate(statements, start=1):
+                    st.markdown(f"##### Statement {idx}")
+                    cur.execute(stmt)
+
+                    if cur.with_rows:      # SELECT (or similar returning rows)
+                        rows = cur.fetchmany(200)
+                        cols = [d[0] for d in cur.description]
+                        st.dataframe(pd.DataFrame(rows, columns=cols),
+                                     use_container_width=True)
+                        if cur.rowcount == -1:
+                            st.caption("Showing first 200 rows.")
+                    else:                  # UPDATE / INSERT / DELETE, etc.
+                        any_write = True
+                        st.success(f"{cur.rowcount} row(s) affected.")
+
+                if any_write:
                     conn.commit()
-                    st.success(f"Executed {len(stmts)} statement(s) successfully.")
-                    simple_rerun()
-                except Exception as e:
-                    st.error(f"Execution failed: {e}")
-                finally:
-                    cur.close(); conn.close()
+                    st.success("Changes committed.")
+
+            except Exception as e:
+                st.error(f"Error: {e}")
+            finally:
+                cur.close(); conn.close()
