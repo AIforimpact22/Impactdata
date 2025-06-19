@@ -1,0 +1,117 @@
+OBJECTID,vmoTipusKod,Torzsszam,vmoNev,Rendszam,VMOEov_EOVx,VMOEov_EOVy,vFkAllomas_AdatgazdaNev,vFkAllomas_Nevr,vFkAllomas_Leiras,vFkAllomas_TalajvizkutTelepulesNev,vFkAllomas_KapcsSzkmNev,vFkAllomas_AllomasTavmBemenetNev,vFkAllomas_AllomasTVA,vFkAllomas_TalajvizkutKatSzam,vFkAllomas_TalajvizkutJelzoszam,vFkAllomas_FkAllAdatforgTipNev,vFkAllomas_TalajvizkutVizminVanE,vFkAllomas_TalajvizkutTipuskodNev,vFkAllomas_TalajvizkutTerepmag,vFkAllomas_TalajvizkutKutperemmag,vFkAllomas_TalajvizkutKutmelyseg,vFkAllomas_TalajvizjutGyorsadat,vFkAllomas_FkAllVKImon,vFkAllomas_FkAllUzemelesNev
+1,12,3476,Hegyeshalom,AAO818,290066.3,504282.45,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2698,regisztrált,0,törzsállomás,128.29,129,930,0,1,üzemel
+2,12,4126,Rajka,ABE173,294970,515432.93,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,1,-,3265,regisztrált,0,törzsállomás,126.89,128.1,800,0,0,üzemel
+3,12,4127,Jánossomorja,AAP254,271347,506174,ÉDUVIZIG,-,-,Jánossomorja,Hansági szakaszmérnökség,nincs távmérő,1,-,3264,regisztrált,0,törzsállomás,116.31,117.31,900,0,0,üzemel
+4,12,4129,Bezenye,AAM350,294124.2,514843.6,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,1,-,3218,regisztrált,0,törzsállomás,125.75,126.72,860,0,0,üzemel
+5,12,134,Bezenye,AAM354,291501.52,511666.81,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,2647,regisztrált,0,törzsállomás,125.89,126.85,907,0,0,üzemel
+6,12,135,Bezenye,AAM355,293128.77,513539.66,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2648,regisztrált,0,törzsállomás,127.57,128.54,984,0,0,üzemel
+7,12,209,Nagyigmánd,ABD008,255422.36,577526.12,ÉDUVIZIG,-,-,Nagyigmánd,Tatai szakaszmérnökség,nincs távmérő,1,-,1056,regisztrált,0,törzsállomás,125.92,126.47,632,0,1,üzemel
+8,12,110613,Rajka,ACA245,296529.54,514935.26,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9314,regisztrált,0,üzemi állomás,127.2,127.88,1124,0,0,üzemel
+9,12,110790,Máriakálnok,ACA951,280471.37,520871.47,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9570-6,regisztrált,0,üzemi állomás,118.96,119.77,3530,0,0,üzemel
+10,12,110634,Rajka,ACA638,295887.1,512455.31,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9368,regisztrált,0,üzemi állomás,129.01,129.97,1700,0,0,üzemel
+11,12,110387,Dunakiliti,ABZ201,294339,517819,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,11221/2,észlelt,0,üzemi állomás,125.45,126.33,3075,0,0,üzemel
+12,12,110240,Rajka,ABX126,295887.27,513523.36,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,1SZF I/3,észlelt,1,üzemi állomás,126.49,127.37,820,0,1,üzemel
+13,12,111489,Ács,AIK795,266951,571852,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96141,regisztrált,0,üzemi állomás,115.66,116.588,1410,0,0,üzemel
+14,12,110616,Rajka,ACA247,295804.06,515580.03,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9321,észlelt,0,üzemi állomás,125.51,126.35,1074,0,0,üzemel
+15,12,4064,Feketeerdő,AAO015,289513.87,518215.26,ÉDUVIZIG,-,-,Feketeerdő,Szigetközi szakaszmérnökség,nincs távmérő,1,-,3021,regisztrált,0,törzsállomás,123.48,124.45,900,0,0,üzemel
+16,12,3624,Hegyeshalom,AAO820,291928.08,505358.66,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2693,regisztrált,0,törzsállomás,128.1,129.54,750,0,1,üzemel
+17,12,3625,Rajka,ABE175,294425.35,508024.88,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2699,regisztrált,0,törzsállomás,128.6,129.62,1200,0,1,üzemel
+18,12,3626,Rajka,ABE176,297457.62,511069.76,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2700,regisztrált,0,törzsállomás,129.97,131.12,1050,0,0,üzemel
+19,12,3627,Rajka,ABE177,297597.65,511642.36,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2727,regisztrált,0,törzsállomás,128,129.22,900,1,0,üzemel
+20,12,110386,Dunakiliti,ABZ202,294339,517819,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,11221/1,észlelt,0,üzemi állomás,125.45,126.33,1052,0,0,üzemel
+21,12,6931,Mosonmagyaróvár,AOR647,282290.26,516241.63,ÉDUVIZIG,GNMOM1B,2007-ben létesült Phare kút. A 000116 Mosonmagyaróvár eltömődött állomás kiváltására vontuk be az észlelésbe.,Mosonmagyaróvár,Szigetközi szakaszmérnökség,nincs távmérő,1,-,-,észlelt,0,törzsállomás,119.56,120.41,1150,0,0,üzemel
+22,12,110241,Rajka,ABX124,295795.33,515567.08,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,F-1 Rajka,regisztrált,0,üzemi állomás,126.21,127.27,5030,0,1,üzemel
+23,12,110635,Rajka,ACA639,295188.48,513426.28,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9369,regisztrált,0,üzemi állomás,126.31,127.37,1700,0,0,üzemel
+24,12,110621,Dunakiliti,ACA240,294853.92,515958.44,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9330,regisztrált,0,üzemi állomás,126.95,127.44,1277,0,0,üzemel
+25,12,4134,Újrónafő,AAV185,278796,513513,ÉDUVIZIG,-,-,Újrónafő,Hansági szakaszmérnökség,nincs távmérő,1,-,3304,regisztrált,0,törzsállomás,118.33,119.29,1000,0,0,üzemel
+26,12,4135,Jánossomorja,AAP256,276937,504884,ÉDUVIZIG,-,-,Jánossomorja,Hansági szakaszmérnökség,nincs távmérő,1,-,3305,regisztrált,0,törzsállomás,119.83,120.82,1000,0,0,üzemel
+27,12,143,Feketeerdő,AAO017,289121.08,517654.78,ÉDUVIZIG,-,-,Feketeerdő,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2600,regisztrált,0,törzsállomás,122.4,122.79,830,1,0,üzemel
+28,12,144,Feketeerdő,AAO018,288118.59,516485.46,ÉDUVIZIG,-,-,Feketeerdő,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2611,regisztrált,0,törzsállomás,122.1,123.06,833,0,0,üzemel
+29,12,6137,Újrónafő,AIW034,275983.3,511583.36,ÉDUVIZIG,-,-,Újrónafő,Hansági szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,-,távmért,0,törzsállomás,117.86,118.63,780,0,0,üzemel
+30,12,110664,Mosonmagyaróvár,ACA867,284675.13,517257,ÉDUVIZIG,-,-,Mosonmagyaróvár,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9418,regisztrált,0,üzemi állomás,121.06,122.16,1300,0,0,üzemel
+31,12,110619,Dunakiliti,ACA241,295047.54,516209.97,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9327,regisztrált,0,üzemi állomás,126.22,126.81,1250,0,0,üzemel
+32,12,119,Rajka,ABE180,293150.41,506764.97,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,2681,regisztrált,0,törzsállomás,128.56,129.48,1070,1,1,üzemel
+33,12,3671,Ács,AAL461,262637.22,572674.52,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,1,-,3069,regisztrált,0,törzsállomás,118.65,119.87,900,0,0,üzemel
+34,12,3813,Ács-Nagyszentjános,ABD123,260592.85,565067.32,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,1,-,3117,regisztrált,0,törzsállomás,119.14,120.368,800,0,0,üzemel
+35,12,110787,Máriakálnok,ABC401,280471.37,520871.47,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95703,regisztrált,0,üzemi állomás,118.96,119.77,7790,0,1,üzemel
+36,12,147,Dunakiliti-Feketeerdő,AAO021,290459.82,519180.93,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2615,regisztrált,0,törzsállomás,124.23,124.76,970,0,0,üzemel
+37,12,110786,Máriakálnok,ABC399,280471.37,520871.47,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95702,regisztrált,1,üzemi állomás,118.96,119.77,9200,0,1,üzemel
+38,12,3937,Hegyeshalom,AAO816,290784,510718.65,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2540,regisztrált,0,törzsállomás,125.07,126.4,900,0,0,üzemel
+39,12,6939,Mosonmagyaróvár,APW205,281650.7,517523.36,ÉDUVIZIG,GNMOM6A,A 000117 Mosonmagyaróvár feliszapolódott  regisztrált törzsállomás helyettesítésére.,Mosonmagyaróvár,Szigetközi szakaszmérnökség,nincs távmérő,1,-,GNMOM6A,regisztrált,0,törzsállomás,119.92,120.73,600,0,0,üzemel
+40,12,110822,Ács,AAW221,264720.94,564481.02,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96091,regisztrált,0,üzemi állomás,119.14,120.027,4537,0,0,üzemel
+41,12,3676,Mosonszolnok,ABC836,280536.66,509801.47,ÉDUVIZIG,-,-,Mosonszolnok,Szigetközi szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,3074,regisztrált,0,törzsállomás,122.7,123.52,1000,0,1,üzemel
+42,12,3677,Jánossomorja-Mosonszentjános,ABC818,273031,507758,ÉDUVIZIG,-,-,Jánossomorja (Mosonszentjános),Hansági szakaszmérnökség,nincs távmérő,1,-,3075,regisztrált,0,törzsállomás,117.27,118.33,900,0,1,üzemel
+43,12,177,Mosonszolnok,ABC837,279335.3,510812.18,ÉDUVIZIG,-,-,Mosonszolnok,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2958,regisztrált,0,törzsállomás,120.13,120.97,971,0,0,üzemel
+44,12,3820,Levél,ABC082,282899.43,513191.41,ÉDUVIZIG,-,-,Levél,Szigetközi szakaszmérnökség,nincs távmérő,1,-,3124,regisztrált,0,törzsállomás,121.61,122.78,1000,0,1,üzemel
+45,12,179,Jánossomorja-Mosonszentjános,ABC819,274825.76,508548.47,ÉDUVIZIG,-,-,Jánossomorja (Mosonszentjános),Hansági szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,2960,távmért,0,törzsállomás,118.25,119.2,1020,1,0,üzemel
+46,12,4327,Rajka,ABE191,296564.46,510307.11,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2684,regisztrált,0,törzsállomás,130.93,131.92,1500,0,0,üzemel
+47,12,3586,Várbalog,AAV351,280212,500659,ÉDUVIZIG,-,-,Várbalog,Hansági szakaszmérnökség,nincs távmérő,1,-,1035,regisztrált,0,törzsállomás,123.26,123.97,900,1,1,üzemel
+48,12,110618,Bezenye,ACA828,294479.38,514039.01,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9325,regisztrált,0,üzemi állomás,125.71,126.75,1808,0,0,üzemel
+49,12,110637,Rajka,ACA845,294958.28,512115.62,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9379,regisztrált,0,üzemi állomás,127.99,129.13,1788,0,0,üzemel
+50,12,110657,Rajka,ACA846,297718.58,513908.98,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9409,regisztrált,0,üzemi állomás,127.64,134.25,1350,0,0,üzemel
+51,12,3470,Bezenye,AAM348,292528.84,512820.07,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,1,-,1020,regisztrált,0,törzsállomás,125.61,126.48,810,0,0,üzemel
+52,12,110413,Rajka,ACB656,295793.93,515581.14,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,2.sz.PIEZ,regisztrált,0,üzemi állomás,125.83,126.1,865,0,1,üzemel
+53,12,110612,Rajka,ACA244,296683.77,514513.22,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9313,észlelt,0,üzemi állomás,126.52,127.51,1000,0,0,üzemel
+54,12,111483,Nagyszentjános,AIK791,266170.2,561603.83,ÉDUVIZIG,-,-,Nagyszentjános,Tatai szakaszmérnökség,nincs távmérő,0,-,96062,regisztrált,0,üzemi állomás,117.61,118.31,1330,0,0,üzemel
+55,12,3682,Levél,ABC081,284456.69,514044.55,ÉDUVIZIG,-,-,Levél,Szigetközi szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,3080,regisztrált,0,törzsállomás,121.7,122.77,1000,1,0,üzemel
+56,12,206,Bábolna,AAL746,255687.22,569779.19,ÉDUVIZIG,-,-,Bábolna,Tatai szakaszmérnökség,nincs távmérő,1,-,1052,regisztrált,0,törzsállomás,137.48,138.392,975,0,1,üzemel
+57,12,111509,Mosonmagyaróvár,AIL655,284447.49,519528.64,ÉDUVIZIG,-,-,Mosonmagyaróvár,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95391,regisztrált,0,üzemi állomás,121.47,122.51,1470,0,0,üzemel
+58,12,111512,Rajka,AIL670,295555.39,516056.14,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95821,regisztrált,0,üzemi állomás,125.82,133.36,0,0,0,üzemel
+59,12,3473,Hegyeshalom,AAO817,288134.05,507494.34,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,1,-,1031,regisztrált,0,törzsállomás,127.04,128.05,1160,1,0,üzemel
+60,12,3475,Rajka,ABE172,296929.06,510606.67,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,1,-,2692,regisztrált,0,törzsállomás,129.53,130.38,910,0,0,üzemel
+61,12,110744,Rajka,ACA925,296985.54,512411.08,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9530-3,észlelt,1,üzemi állomás,127.89,128.535,6370,0,1,üzemel
+62,12,110609,Rajka,ABZ243,298259.17,512571.86,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9305,észlelt,0,üzemi állomás,128.71,129.72,1400,0,0,üzemel
+63,12,110636,Dunakiliti,ACA620,292502,516078,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9371,regisztrált,0,üzemi állomás,124.77,125.57,1700,0,0,üzemel
+64,12,110381,Dunakiliti,ABZ027,295865.94,515628.28,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,11212/2,észlelt,0,üzemi állomás,127.24,128.14,2800,0,0,üzemel
+65,12,3593,Bezenye,AAM349,293900.7,514370.6,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,1,-,1080,regisztrált,0,törzsállomás,125.46,126.4,800,0,0,üzemel
+66,12,3594,Hegyeshalom,AAO819,287002.11,508152.43,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,1,-,1087,regisztrált,0,törzsállomás,126.13,126.44,1200,0,0,üzemel
+67,12,3595,Várbalog,AAV352,278749,502587,ÉDUVIZIG,-,-,Várbalog,Hansági szakaszmérnökség,nincs távmérő,1,-,1089,regisztrált,0,törzsállomás,121.04,122.04,900,0,1,üzemel
+68,12,110646,Mosonmagyaróvár,ACA637,287054.45,515390.51,ÉDUVIZIG,-,-,Mosonmagyaróvár,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9389,regisztrált,0,üzemi állomás,123.66,124.69,1700,0,0,üzemel
+69,12,111404,Várbalog (Jánossomorja vb.),AIL700,279642,501402,ÉDUVIZIG,-,-,Várbalog,Hansági szakaszmérnökség,nincs távmérő,0,K-14,JVE-1/2,regisztrált,1,üzemi állomás,123.16,122.33,2300,0,1,üzemel
+70,12,110643,Bezenye,ACA608,288682.22,513576.64,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9385,regisztrált,0,üzemi állomás,123.45,124.42,1700,0,0,üzemel
+72,12,110748,Rajka,ACA907,294998.3,506446.37,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9532,regisztrált,1,üzemi állomás,129.66,130.83,1100,0,1,üzemel
+73,12,110243,Rajka,ABX125,298421.18,512883.98,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,11206/a,észlelt,0,üzemi állomás,128.84,129.92,4500,0,1,üzemel
+74,12,110231,Rajka,ABX127,295889.95,513524.32,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,1SZF I/2,észlelt,1,üzemi állomás,126.49,127.39,1510,0,1,üzemel
+75,12,110816,Rajka,ACB028,298255,514660,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,Dkl-7,regisztrált,0,üzemi állomás,128.3,129.6,5000,0,1,üzemel
+76,12,110640,Bezenye,ACA607,291752.05,516885.91,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9382,regisztrált,0,üzemi állomás,124.58,125.57,1700,0,0,üzemel
+77,12,110789,Máriakálnok,ABC402,280471.37,520871.47,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95705,regisztrált,0,üzemi állomás,118.96,119.77,5430,0,1,üzemel
+78,12,111472,Bezenye,AIL564,289931.47,512550.44,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95331,regisztrált,0,üzemi állomás,125.14,125.88,1010,0,0,üzemel
+79,12,110622,Dunakiliti,ACA243,294565.19,515588.26,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9331,regisztrált,0,üzemi állomás,126.74,127.46,1240,0,0,üzemel
+80,12,110745,Rajka,ACA928,296985.54,512411.08,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9530-4,észlelt,1,üzemi állomás,127.89,128.535,4420,0,1,üzemel
+81,12,110242,Rajka,ABX128,295802.87,515560.51,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,P-2,észlelt,0,üzemi állomás,125.88,126.52,6030,0,1,üzemel
+82,12,110743,Rajka,ACA929,296985.54,512411.08,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9530-2,észlelt,1,üzemi állomás,127.89,128.535,8050,0,1,üzemel
+83,12,110747,Rajka,ACA926,296985.54,512411.08,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9530-6,észlelt,0,üzemi állomás,127.89,128.535,1300,0,0,üzemel
+84,12,110610,Rajka,ABZ244,297521.01,513644.61,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9310,regisztrált,0,üzemi állomás,128.64,129.59,1210,0,0,üzemel
+85,12,110617,Rajka,ACA248,295272.34,514964.27,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9324,regisztrált,0,üzemi állomás,126.42,127.61,1280,0,0,üzemel
+86,12,110606,Rajka,ABZ246,298839.75,512633.14,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9301,észlelt,0,üzemi állomás,128.85,130.16,1200,0,0,üzemel
+87,12,110638,Rajka,ACA641,294154.22,511187.75,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9380,regisztrált,0,üzemi állomás,125.22,126.376,1821,0,0,üzemel
+88,12,110644,Bezenye,ACA609,292510.8,513940.61,ÉDUVIZIG,-,-,Bezenye,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9386,regisztrált,1,üzemi állomás,126.31,127.34,1700,0,1,üzemel
+89,12,110823,Ács,AAW220,264720.94,564481.02,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96092,regisztrált,0,üzemi állomás,119.14,120.027,800,0,0,üzemel
+90,12,110412,Rajka,ACB659,295790.84,515575.63,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,Próbakut,regisztrált,0,üzemi állomás,126.52,127.24,2350,0,1,üzemel
+91,12,111485,Nagyszentjános,AIK799,265859,561382,ÉDUVIZIG,-,-,Nagyszentjános,Tatai szakaszmérnökség,nincs távmérő,0,-,96072,regisztrált,0,üzemi állomás,117.54,117.576,3420,0,0,üzemel
+92,12,110820,Ács,AAW223,266700.27,564452.41,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96082,regisztrált,0,üzemi állomás,117.44,118.66,3565,0,0,üzemel
+93,12,111610,Ács-Lovadi rét tvb.,AMJ626,267776.198,568201.946,ÉDUVIZIG,Ács,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,K-84,T-1,regisztrált,0,üzemi állomás,110.254,111.131,2075,0,0,üzemel
+94,12,111402,Hegyeshalom (Jánossomorja vb.),AIL640,284086,504182,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,0,K-48,JHE-1,regisztrált,1,üzemi állomás,124.73,125.44,1700,0,1,üzemel
+95,12,110414,Rajka,ACB657,295780.35,515564.28,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,6.sz.piez,regisztrált,0,üzemi állomás,126.85,127.53,870,0,0,üzemel
+96,12,110229,Rajka,ABX129,295892.81,513525.33,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,ISZF I/1,észlelt,1,üzemi állomás,126.49,127.41,2010,0,1,üzemel
+97,12,110819,Ács,AAW225,266700.27,564452.41,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96081,regisztrált,0,üzemi állomás,117.44,118.66,5000,0,0,üzemel
+98,12,110602,Gönyű,ABJ762,265874.33,558623.81,ÉDUVIZIG,-,Elődállomása 110817 Gönyű,Gönyű,Rábai szakaszmérnökség,nincs távmérő,0,-,96021,regisztrált,0,üzemi állomás,115.7,116.657,1500,0,0,üzemel
+99,12,110227,Dunakiliti,ACA997,293692,518037,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,4189/a1/K-10/,észlelt,1,üzemi állomás,125.47,126.47,8460,0,1,üzemel
+100,12,110742,Rajka,ACA927,296985.76,512411.09,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9530-1,észlelt,1,üzemi állomás,127.89,128.58,9970,0,1,üzemel
+101,12,110824,Ács,AAW222,265731.37,571853.17,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96161,regisztrált,0,üzemi állomás,121.97,122.39,1600,0,0,üzemel
+102,12,111505,Hegyeshalom,AIL637,291116.66,505101.08,ÉDUVIZIG,-,-,Hegyeshalom,Szigetközi szakaszmérnökség,nincs távmérő,0,-,1. sz. Lajta,regisztrált,0,üzemi állomás,127.889,128.548,0,0,0,üzemel
+103,12,110639,Dunakiliti,ACA619,292151,518150,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9381,észlelt,0,üzemi állomás,125.11,125.94,1500,0,0,üzemel
+104,12,110620,Dunakiliti,ACA242,294975.1,516119.27,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9329,regisztrált,0,üzemi állomás,127.13,127.44,1260,0,0,üzemel
+105,12,110600,Gönyű,ABZ228,266720.81,557345.18,ÉDUVIZIG,-,-,Gönyű,Rábai szakaszmérnökség,nincs távmérő,0,-,9574,regisztrált,0,üzemi állomás,111.4,112.85,700,0,0,üzemel
+106,12,6155,Nagyszentjános,AIW024,263143.62,561772.7,ÉDUVIZIG,-,-,Nagyszentjános,Tatai szakaszmérnökség,"csak ""tárolt"" adatok (reg) átadása",1,-,-,távmért,0,törzsállomás,118.73,119.46,728,0,0,üzemel
+107,12,110228,Dunakiliti,ACA998,293702,518039,ÉDUVIZIG,-,-,Dunakiliti,Szigetközi szakaszmérnökség,nincs távmérő,0,-,4189/a2 /K-11/,észlelt,1,üzemi állomás,125.43,126.28,4000,0,1,üzemel
+108,12,111484,Nagyszentjános,AIK800,265859,561382,ÉDUVIZIG,-,-,Nagyszentjános,Tatai szakaszmérnökség,nincs távmérő,0,-,96071,regisztrált,0,üzemi állomás,117.54,117.576,4775,0,0,üzemel
+109,12,111486,Ács,AIK798,266845.1,569251.84,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96123,regisztrált,0,üzemi állomás,119.19,120.26,1380,0,0,üzemel
+110,12,110826,Komárom-Ács,AAW226,268350,574215,ÉDUVIZIG,-,-,Komárom,Tatai szakaszmérnökség,nincs távmérő,0,-,96191/b,regisztrált,0,üzemi állomás,109.41,115.574,1040,0,0,üzemel
+111,12,110788,Máriakálnok,ABC404,280471.37,520871.47,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95704,regisztrált,0,üzemi állomás,118.96,119.77,6450,0,1,üzemel
+112,12,110751,Mosonmagyaróvár,ACA954,287156.71,518171.87,ÉDUVIZIG,-,-,Mosonmagyaróvár,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9538,regisztrált,0,üzemi állomás,122.59,123.54,1300,0,0,üzemel
+113,12,110746,Rajka,ACA931,296985.54,512411.08,ÉDUVIZIG,-,-,Rajka,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9530-5,észlelt,0,üzemi állomás,127.89,128.535,2950,0,0,üzemel
+114,12,110791,Máriakálnok,ACA952,280471.37,520871.47,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,9570-7,regisztrált,0,üzemi állomás,118.96,119.77,0,0,0,üzemel
+115,12,110785,Máriakálnok,ABC406,280470.72,520871.57,ÉDUVIZIG,-,-,Máriakálnok,Szigetközi szakaszmérnökség,nincs távmérő,0,-,95701,nincs,1,üzemi állomás,118.96,119.77,9970,0,1,üzemel
+116,12,111488,Ács,AIK797,266666.78,566462.98,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96132,regisztrált,0,üzemi állomás,117.87,118.77,1737,0,0,üzemel
+117,12,110825,Ács,AAW224,265322,570877,ÉDUVIZIG,-,-,Ács,Tatai szakaszmérnökség,nincs távmérő,0,-,96181,regisztrált,1,üzemi állomás,121.1,121.17,1460,0,1,üzemel

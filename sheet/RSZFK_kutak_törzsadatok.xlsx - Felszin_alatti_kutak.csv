@@ -1,0 +1,13 @@
+OBJECTID,vmoTipusKod,Torzsszam,vmoNev,Rendszam,VMOEov_Torzsszam,VMOEov_EOVx,VMOEov_EOVy,vFaAllomas_AdatgazdaNev,vFaAllomas_RetegvizkutTelepulesNev,vFaAllomas_KapcsSzkmNev,vFaAllomas_AllomasTVA,vFaAllomas_RetegvizkutJellegkodNev,vFaAllomas_RetegvizkutKatSzam,vFaAllomas_FaAllAdatforgTipNev,vFaAllomas_RetegvizkutTipuskodNev,vFaAllomas_RetegvizkutJelzoszam,vFaAllomas_RetegvizkutTerepmag,vFaAllomas_RetegvizkutKutperemmag,vFaAllomas_RetegvizkutKutmelyseg,vFaAllomas_FaAllVKImon,vFaAllomas_FaAllUzemelesNev
+1,13,3878,Dunakiliti-4189/1,AAN619,3878,293676.91,517989.41,ÉDUVIZIG,Dunakiliti,Szigetközi szakaszmérnökség,1,hideg rétegvíz (<30C),-,észlelt,törzsállomás,4189/1,125.75,126.469,12.5,1,üzemel
+2,13,3879,Dunakiliti-4189/2,AAN620,3879,293676.79,517989.59,ÉDUVIZIG,Dunakiliti,Szigetközi szakaszmérnökség,1,hideg rétegvíz (<30C),-,észlelt,törzsállomás,4189/2,125.75,126.484,61.03,1,üzemel
+3,13,3880,Dunakiliti-4189/3,AAN621,3880,293676.56,517989.5,ÉDUVIZIG,Dunakiliti,Szigetközi szakaszmérnökség,1,hideg rétegvíz (<30C),-,észlelt,törzsállomás,4189/3,125.75,126.551,129.48,1,üzemel
+4,13,3881,Dunakiliti-4189/4,AAN622,3881,293676.72,517989.4,ÉDUVIZIG,Dunakiliti,Szigetközi szakaszmérnökség,1,hideg rétegvíz (<30C),-,észlelt,törzsállomás,4189/4,125.75,126.483,197.73,1,üzemel
+5,13,4256,Bábolna K 33,AAL747,4256,255294.3,570621,ÉDUVIZIG,Bábolna,Tatai szakaszmérnökség,1,hideg rétegvíz (<30C),-,regisztrált,törzsállomás,K-33,136.36,136.77,250,1,üzemel
+6,13,273,Levél B-17,ABC083,273,285069.89,512004.81,ÉDUVIZIG,Levél,Szigetközi szakaszmérnökség,1,,-,ismeretlen,törzsállomás,B -17,123.3,124.12,105.5,0,megszűnt
+7,13,274,Várbalog B-1,AAV355,274,278910.53,502173.22,ÉDUVIZIG,Várbalog,Hansági szakaszmérnökség,1,hideg rétegvíz (<30C),-,észlelt,törzsállomás,B-1,123.63,123.63,136,1,üzemel
+8,13,6111,Hegyeshalom K-43,AIQ194,6111,287693.001,509628.686,ÉDUVIZIG,(n.a.),Szigetközi szakaszmérnökség,1,hideg rétegvíz (<30C),K-43,regisztrált,törzsállomás,-,124.95,124.883,60,0,üzemel
+9,13,110837,Komárom,ABB406,110837,267236.12,579332.81,ÉDUVIZIG,Komárom,Tatai szakaszmérnökség,0,hideg rétegvíz (<30C),-,regisztrált,üzemi állomás,96333,115.44,116.18,8.5,0,üzemel
+10,13,111487,Ács,AIK796,111487,266666.78,566462.98,ÉDUVIZIG,Ács,Tatai szakaszmérnökség,0,hideg rétegvíz (<30C),-,regisztrált,üzemi állomás,96131,118.21,119.22,48.7,1,üzemel
+11,13,110829,Komárom,ABB416,110829,267665,577554,ÉDUVIZIG,Komárom,Tatai szakaszmérnökség,0,hideg rétegvíz (<30C),-,regisztrált,üzemi állomás,96271,121.99,122.95,49.5,0,üzemel
+12,13,110835,Komárom,ABB417,110835,267236,579331,ÉDUVIZIG,Komárom,Tatai szakaszmérnökség,0,hideg rétegvíz (<30C),-,regisztrált,üzemi állomás,96331,115.44,116.18,49.9,0,üzemel
