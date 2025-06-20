@@ -51,15 +51,16 @@ def render_add_page(get_connection, simple_rerun):
 
     # ── build INPUT form ─────────────────────────────────────────────────────
     with st.form("insert_form"):
-        inputs = {}
+        inputs: dict[str, object] = {}
         for field, col_type, nullable, key, default, extra in cols:
             # skip auto-increment
             if "auto_increment" in extra.lower():
                 continue
             label = f"{field} ({col_type})"
-            # pick widget based on type
             if "int" in col_type:
-                val = st.number_input(label, value=default or 0, format="%d")
+                # ensure value is float for number_input
+                default_val = float(default) if default is not None else 0.0
+                val = st.number_input(label, value=default_val, step=1.0)
             else:
                 val = st.text_input(label, value=default or "")
             inputs[field] = val
