@@ -7,7 +7,6 @@ and called by app.py.
 """
 
 import streamlit as st
-import pandas as pd
 
 def render_delete_page(get_connection, simple_rerun):
     st.title("Delete Database or Table")
@@ -24,29 +23,30 @@ def render_delete_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
     if not dbs:
-        st.info("No user-created databases."); 
+        st.info("No user-created databases.")
         return
 
-    # ── Section: Drop entire database ────────────────────────────────────────
-    with st.expander("Drop a whole database", expanded=True):
-        with st.form("drop_db_form"):
-            db_to_drop = st.selectbox("Select database to drop", dbs, key="drop_db_select")
-            confirm_db = st.form_submit_button(f"⚠️ Drop database `{db_to_drop}`")
-        if confirm_db:
-            try:
-                conn = get_connection(); cur = conn.cursor()
-                cur.execute(f"DROP DATABASE `{db_to_drop}`")
-                conn.commit()
-                st.success(f"Database `{db_to_drop}` deleted.")
-                simple_rerun()
-            except Exception as e:
-                st.error(f"Failed to drop `{db_to_drop}`: {e}")
-            finally:
-                cur.close(); conn.close()
-            return  # stop further rendering to let rerun refresh the list
+    # ── Drop a database ──────────────────────────────────────────────────────
+    st.subheader("Drop an entire database")
+    db_to_drop = st.selectbox("Select database", dbs, key="db_drop")
+    if st.button(f"❌ Drop database `{db_to_drop}`"):
+        try:
+            conn = get_connection(); cur = conn.cursor()
+            cur.execute(f"DROP DATABASE `{db_to_drop}`")
+            conn.commit()
+            st.success(f"Database `{db_to_drop}` deleted.")
+            simple_rerun()
+        except Exception as e:
+            st.error(f"Failed to drop `{db_to_drop}`: {e}")
+        finally:
+            cur.close(); conn.close()
+        return  # stop here so the rerun will refresh the list
 
-    # ── Section: Drop individual table ────────────────────────────────────────
-    db_for_tables = st.selectbox("Database for table operations", dbs, key="table_db_select")
+    st.markdown("---")
+
+    # ── Drop a table ─────────────────────────────────────────────────────────
+    st.subheader("Drop a table from a database")
+    db_for_tables = st.selectbox("Choose database", dbs, key="tbl_db_drop")
     try:
         conn = get_connection(db_for_tables); cur = conn.cursor()
         cur.execute("SHOW TABLES")
@@ -55,23 +55,19 @@ def render_delete_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
     if not tables:
-        st.info(f"No tables inside database `{db_for_tables}`.")
+        st.info(f"No tables in `{db_for_tables}`.")
         return
 
-    with st.expander(f"Drop a table from `{db_for_tables}`", expanded=True):
-        with st.form("drop_table_form"):
-            tbl = st.selectbox("Select table to drop", tables, key="drop_tbl_select")
-            confirm_tbl = st.form_submit_button(f"⚠️ Drop table `{tbl}`")
-        if confirm_tbl:
-            try:
-                conn = get_connection(db_for_tables); cur = conn.cursor()
-                cur.execute(f"DROP TABLE `{tbl}`")
-                conn.commit()
-                st.success(f"Table `{tbl}` dropped from `{db_for_tables}`.")
-                simple_rerun()
-            except Exception as e:
-                st.error(f"Failed to drop table `{tbl}`: {e}")
-            finally:
-                cur.close(); conn.close()
-            return  # stop to let rerun refresh the list
-
+    tbl_to_drop = st.selectbox("Select table", tables, key="tbl_drop")
+    if st.button(f"❌ Drop table `{tbl_to_drop}` from `{db_for_tables}`"):
+        try:
+            conn = get_connection(db_for_tables); cur = conn.cursor()
+            cur.execute(f"DROP TABLE `{tbl_to_drop}`")
+            conn.commit()
+            st.success(f"Table `{tbl_to_drop}` dropped.")
+            simple_rerun()
+        except Exception as e:
+            st.error(f"Failed to drop table `{tbl_to_drop}`: {e}")
+        finally:
+            cur.close(); conn.close()
+        return  # stop here so the rerun will refresh the table list
