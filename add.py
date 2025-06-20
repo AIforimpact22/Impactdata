@@ -54,15 +54,16 @@ def render_add_page(get_connection, simple_rerun):
     with st.form("insert_form"):
         inputs: dict[str, object] = {}
         for field, col_type, nullable, key, default, extra in cols:
-            # skip auto-increment columns
             if "auto_increment" in extra.lower():
                 continue
 
             label = f"{field} ({col_type})"
             if "int" in col_type:
-                # ensure JS sees a float default
-                default_val = float(default) if default is not None else 0.0
-                # collect as float, then we'll cast back to int
+                # JS wants a float here, so coerce default → float
+                try:
+                    default_val = float(default) if default is not None else 0.0
+                except Exception:
+                    default_val = 0.0
                 val_f = st.number_input(label, value=default_val, step=1.0)
                 inputs[field] = int(val_f)
             else:
