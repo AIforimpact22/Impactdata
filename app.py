@@ -1,11 +1,12 @@
+# app.py
 """
 Streamlit entry-point.
 
 Pages in this file:
     • Provision Database
     • Database Browser
-Delegated pages (separate modules):
     • Edit Database     → edit.py
+    • Add Data          → add.py          ← NEW
     • Connection Info   → connection.py
     • Delete            → delete.py
 """
@@ -54,6 +55,7 @@ PAGES = [
     "Provision Database",
     "Database Browser",
     "Edit Database",
+    "Add Data",           # ← NEW
     "Connection Info",
     "Delete",
 ]
@@ -150,14 +152,16 @@ def page_browser():
                 cur.close(); conn.close()
 
 # ── IMPORT DELEGATED PAGES ──────────────────────────────────────────────────
-from delete import render_delete_page
+from edit import render_edit_page
+from add import render_add_page             # ← NEW
 from connection import render_connection_page
-from edit import render_edit_page            #  << NEW >>
+from delete import render_delete_page
 
 # ── ROUTER ───────────────────────────────────────────────────────────────────
 match st.session_state.page:
     case "Provision Database": page_provision()
     case "Database Browser":   page_browser()
     case "Edit Database":      render_edit_page(get_connection, _simple_rerun)
+    case "Add Data":           render_add_page(get_connection, _simple_rerun)  # ← NEW
     case "Connection Info":    render_connection_page(get_connection)
     case "Delete":             render_delete_page(get_connection, _simple_rerun)
