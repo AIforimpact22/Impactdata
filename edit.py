@@ -75,12 +75,13 @@ def render_edit_page(get_connection, simple_rerun):
         orig_df = pd.DataFrame(rows, columns=headers)
 
         st.markdown("### Edit, add, or delete rows directly below:")
-        edited_df = st.data_editor(
+                edited_df = st.experimental_data_editor(
             orig_df,
             num_rows="dynamic",
             use_container_width=True,
             row_deletable=True,
             key="data_editor",
+        )
         )
 
         if st.button("Save Changes", key="btn_save_all"):
