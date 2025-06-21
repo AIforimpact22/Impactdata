@@ -1,17 +1,16 @@
 """
-edit.py – Table spreadsheet editor  +  free-form SQL editor.
+edit.py – Table spreadsheet editor + free-form SQL editor.
 
 Public API (imported by app.py)
 --------------------------------
     render_edit_page(get_connection, simple_rerun)
 
-Required callbacks
+Callbacks expected
 ------------------
 get_connection(db_name:str|None)  → mysql.connector connection
 simple_rerun()                    → sets a flag then st.rerun()
 """
 from __future__ import annotations
-
 import re
 import streamlit as st
 import pandas as pd
@@ -27,7 +26,7 @@ def render_edit_page(get_connection, simple_rerun):
     st.title("Edit Database")
 
     # ───────────────────────────────────────────────────────────────────────
-    # Choose DATABASE first
+    # Choose DATABASE
     # ───────────────────────────────────────────────────────────────────────
     try:
         conn = get_connection(); cur = conn.cursor()
@@ -48,7 +47,6 @@ def render_edit_page(get_connection, simple_rerun):
     # TAB 1 – Spreadsheet Editor
     # ======================================================================
     with tab_sheet:
-        # ------------------------------------------------------------------
         # pick table & row limit
         try:
             conn = get_connection(db); cur = conn.cursor()
@@ -63,7 +61,6 @@ def render_edit_page(get_connection, simple_rerun):
         tbl = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
 
-        # ------------------------------------------------------------------
         # pull rows
         conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
@@ -71,94 +68,93 @@ def render_edit_page(get_connection, simple_rerun):
         rows = cur.fetchall()
         cur.close(); conn.close()
 
-        if not rows:
-            st.warning("Table is empty (you can still add rows).")
+        # ── detect PK column from MySQL metadata ───────────────────────────
+        try:
+            conn = get_connection(db); cur = conn.cursor()
+            cur.execute(
+                f"SHOW KEYS FROM `{tbl}` WHERE Key_name = 'PRIMARY'")
+            pk_info = cur.fetchone()
+        finally:
+            cur.close(); conn.close()
 
-        # choose PK column (for UPDATE / DELETE)
-        pk_guess = cols[0] if "id" in cols[0].lower() else cols[0]
+        pk_col_auto = pk_info[4] if pk_info else cols[0]  # Column_name
         pk_col = st.selectbox("Primary-key column", cols,
-                              index=cols.index(pk_guess))
+                              index=cols.index(pk_col_auto))
 
-        # original DataFrame (for diffing)
         orig_df = pd.DataFrame(rows, columns=cols)
 
-        # editable grid
         edited_df = st.data_editor(
             orig_df,
-            num_rows="dynamic",          # allows adding rows
+            num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor"
         )
 
         if st.button("Save Changes", key="save_btn"):
+            # Replace NaNs with None to make PyMySQL happy
+            edited_df = edited_df.where(pd.notnull(edited_df), None)
+
             try:
                 conn = get_connection(db); cur = conn.cursor()
 
-                # ----------------- PREP ORIGINAL / EDITED -----------------
-                # ensure NaNs are turned into None for DB inserts
-                edited_df = edited_df.where(pd.notnull(edited_df), None)
+                # ------------------ differences ---------------------------
+                # sets of PK values (None removed)
+                orig_pk_set   = set(orig_df[pk_col].dropna())
+                edited_pk_set = set(edited_df[pk_col].dropna())
 
-                orig_pk_set   = set(orig_df[pk_col].tolist())
-                edited_pk_set = set(
-                    edited_df[pk_col].dropna().tolist()
-                )  # pk may be None for new rows
-
-                # --------------------- DELETES ----------------------------
+                # *Deletes* = PKs present before but not after
                 to_delete = orig_pk_set - edited_pk_set
-                delete_cnt = 0
+
+                # *Updates* = rows with same PK but different cells
+                to_update = []
+                for pk_val in edited_pk_set & orig_pk_set:
+                    row_new = edited_df.loc[edited_df[pk_col] == pk_val].iloc[0]
+                    row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
+                    for c in cols:
+                        if row_new[c] != row_old[c]:
+                            to_update.append((c, row_new[c], pk_val))
+
+                # *Inserts* = rows whose PK was NA before
+                insert_rows = edited_df[edited_df[pk_col].isna()]
+
+                # ---------------- execute SQL -----------------------------
+                del_cnt = upd_cnt = ins_cnt = 0
+
                 for pk_val in to_delete:
+                    cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}`=%s",
+                                (pk_val,))
+                    del_cnt += cur.rowcount
+
+                for col, new_val, pk_val in to_update:
                     cur.execute(
-                        f"DELETE FROM `{tbl}` WHERE `{pk_col}`=%s",
-                        (pk_val,)
+                        f"UPDATE `{tbl}` SET `{col}`=%s WHERE `{pk_col}`=%s",
+                        (new_val, pk_val)
                     )
-                    delete_cnt += cur.rowcount
+                    upd_cnt += cur.rowcount
 
-                # -------------------- UPDATES -----------------------------
-                update_cnt = 0
-                for _, row in edited_df.iterrows():
-                    pk_val = row[pk_col]
-                    if pk_val in orig_pk_set:
-                        # compare with original row
-                        orig_row = orig_df.loc[
-                            orig_df[pk_col] == pk_val
-                        ].iloc[0]
-                        for c in cols:
-                            if row[c] != orig_row[c]:
-                                cur.execute(
-                                    f"UPDATE `{tbl}` SET `{c}`=%s "
-                                    f"WHERE `{pk_col}`=%s",
-                                    (row[c], pk_val)
-                                )
-                                update_cnt += cur.rowcount
+                for _, row in insert_rows.iterrows():
+                    if all(row[c] in (None, "", pd.NA) for c in cols):
+                        # skip completely blank rows
+                        continue
+                    placeholders = ", ".join("%s" for _ in cols)
+                    col_list = ", ".join(f"`{c}`" for c in cols)
+                    cur.execute(
+                        f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
+                        tuple(row[c] for c in cols)
+                    )
+                    ins_cnt += cur.rowcount
 
-                # -------------------- INSERTS -----------------------------
-                insert_cnt = 0
-                for _, row in edited_df.iterrows():
-                    pk_val = row[pk_col]
-                    if pk_val not in orig_pk_set:
-                        # new row – build INSERT (skip completely-blank rows)
-                        if all(row[c] in (None, "", pd.NA) for c in cols
-                               if c != pk_col):
-                            continue
-                        placeholders = ", ".join("%s" for _ in cols)
-                        col_list     = ", ".join(f"`{c}`" for c in cols)
-                        cur.execute(
-                            f"INSERT INTO `{tbl}` ({col_list}) "
-                            f"VALUES ({placeholders})",
-                            tuple(row[c] for c in cols)
-                        )
-                        insert_cnt += cur.rowcount
-
-                conn.commit()
-                msg = []
-                if insert_cnt: msg.append(f"🟢 {insert_cnt} insert")
-                if update_cnt: msg.append(f"🟡 {update_cnt} update")
-                if delete_cnt: msg.append(f"🔴 {delete_cnt} delete")
-                if msg:
-                    st.success(" | ".join(msg) + " operation(s) committed.")
+                if del_cnt or upd_cnt or ins_cnt:
+                    conn.commit()
                 else:
                     st.info("Nothing to save – no changes detected.")
+                    return
 
+                msg = []
+                if ins_cnt: msg.append(f"🟢 {ins_cnt} insert")
+                if upd_cnt: msg.append(f"🟡 {upd_cnt} update")
+                if del_cnt: msg.append(f"🔴 {del_cnt} delete")
+                st.success(" | ".join(msg) + " committed.")
                 simple_rerun()
 
             except Exception as e:
@@ -168,7 +164,7 @@ def render_edit_page(get_connection, simple_rerun):
                 cur.close(); conn.close()
 
     # ======================================================================
-    # TAB 2 – Free SQL / DDL Editor
+    # TAB 2 – Free SQL / DDL
     # ======================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
@@ -197,16 +193,14 @@ def render_edit_page(get_connection, simple_rerun):
                     st.markdown(f"##### Statement {idx}")
                     cur.execute(stmt)
 
-                    if cur.with_rows:          # SELECT (or similar)
+                    if cur.with_rows:   # SELECT or similar
                         rows = cur.fetchmany(200)
                         cols = [d[0] for d in cur.description]
-                        st.dataframe(
-                            pd.DataFrame(rows, columns=cols),
-                            use_container_width=True,
-                        )
+                        st.dataframe(pd.DataFrame(rows, columns=cols),
+                                     use_container_width=True)
                         if cur.rowcount == -1:
                             st.caption("Showing first 200 rows.")
-                    else:                       # UPDATE / INSERT / DELETE
+                    else:               # UPDATE / INSERT / DELETE
                         any_write = True
                         st.success(f"{cur.rowcount} row(s) affected.")
 
