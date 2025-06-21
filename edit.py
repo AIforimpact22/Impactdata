@@ -48,10 +48,9 @@ def render_edit_page(get_connection, simple_rerun):
             return
         tbl = st.selectbox("Select Table", tables)
 
-        # Fetch rows
-        limit = st.number_input("Rows to load", min_value=1, max_value=200, value=20)
+        # Fetch all rows (no limit) for editing
         conn = get_connection(db); cur = conn.cursor()
-        cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
+        cur.execute(f"SELECT * FROM `{tbl}`")
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
         cur.close(); conn.close()
@@ -68,20 +67,13 @@ def render_edit_page(get_connection, simple_rerun):
         pk_col = st.selectbox("Primary-key column", cols, index=cols.index(pk_default))
 
         if st.button("Save Changes"):
-            # Build original map: pk -> tuple(row)
+            # Map original and new rows by PK
             orig_map = {row[cols.index(pk_col)]: row for row in rows}
-            orig_keys = set(orig_map.keys())
+            new_map = {r[pk_col]: r for _, r in edited_df.iterrows() if not pd.isna(r[pk_col])}
 
-            # Build new map: pk -> Series for rows with non-null PK
-            new_map = {}
-            for _, r in edited_df.iterrows():
-                key = r[pk_col]
-                if pd.isna(key):
-                    continue
-                new_map[key] = r
+            orig_keys = set(orig_map.keys())
             new_keys = set(new_map.keys())
 
-            # Determine operations
             deletions = orig_keys - new_keys
             additions_keys = new_keys - orig_keys
             updates_keys = orig_keys & new_keys
@@ -105,19 +97,18 @@ def render_edit_page(get_connection, simple_rerun):
 
             try:
                 conn = get_connection(db); cur = conn.cursor()
-                # Apply deletions
+                # Deletions
                 for k in deletions:
                     cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}` = %s", (k,))
-                # Apply updates
+                # Updates
                 for col, val, k in updates:
                     cur.execute(
                         f"UPDATE `{tbl}` SET `{col}` = %s WHERE `{pk_col}` = %s",
                         (val, k)
                     )
-                # Apply additions
+                # Additions
                 for new_row in additions:
-                    cols_ins = []
-                    vals_ins = []
+                    cols_ins, vals_ins = [], []
                     for col in cols:
                         v = new_row[col]
                         if pd.isna(v) or (col == pk_col and v in (None, '', 0)):
