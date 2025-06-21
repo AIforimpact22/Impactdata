@@ -1,4 +1,9 @@
 from __future__ import annotations
+# Module: edit.py – enhanced Data Editor & SQL Editor with add/delete support
+"""
+Edit-Database page for the Streamlit app.
+Provides a spreadsheet-style data editor (with add/delete) and a free-form SQL editor.
+"""
 import re
 import streamlit as st
 import pandas as pd
