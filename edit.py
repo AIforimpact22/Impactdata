@@ -1,5 +1,5 @@
 """
-edit.py – Spreadsheet-style editor + free-form SQL editor.
+edit.py – Spreadsheet-style data editor + free-form SQL editor.
 
 Imported by app.py
 ------------------
@@ -9,7 +9,7 @@ Public API
 ----------
 render_edit_page(get_connection, simple_rerun)
 
-Callbacks expected
+Expected callbacks
 ------------------
 get_connection(db: str | None) -> mysql.connector connection
 simple_rerun()                  -> sets a flag then st.rerun()
@@ -28,46 +28,40 @@ EXCLUDED_SYS_DBS = (
 
 
 # --------------------------------------------------------------------------- #
-#  Main entry point                                                            #
+#  Main entry                                                                  #
 # --------------------------------------------------------------------------- #
 def render_edit_page(get_connection, simple_rerun):
     st.title("Edit Database")
 
-    # ───────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
     # 1. Pick database
-    # ───────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
     try:
-        conn = get_connection()
-        cur = conn.cursor()
+        conn = get_connection(); cur = conn.cursor()
         cur.execute("SHOW DATABASES")
-        dbs = [
-            d[0] for d in cur.fetchall() if d[0] not in EXCLUDED_SYS_DBS
-        ]
+        dbs = [d[0] for d in cur.fetchall() if d[0] not in EXCLUDED_SYS_DBS]
     finally:
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
     if not dbs:
         st.info("No user-created databases."); return
 
     db = st.selectbox("Database", dbs)
 
-    # Two tabs
+    # Tabs
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
     # ======================================================================
     # TAB 1 – Spreadsheet Editor
     # ======================================================================
     with tab_sheet:
-        # 1‒a. Pick table
+        # 1-a. Pick table
         try:
-            conn = get_connection(db)
-            cur = conn.cursor()
+            conn = get_connection(db); cur = conn.cursor()
             cur.execute("SHOW TABLES")
             tables = [t[0] for t in cur.fetchall()]
         finally:
-            cur.close()
-            conn.close()
+            cur.close(); conn.close()
 
         if not tables:
             st.info("No tables in this DB."); return
@@ -75,53 +69,50 @@ def render_edit_page(get_connection, simple_rerun):
         tbl = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
 
-        # 1‒b. Pull rows
-        conn = get_connection(db)
-        cur = conn.cursor()
+        # 1-b. Pull rows
+        conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
-        cur.close()
-        conn.close()
+        cur.close(); conn.close()
 
-        # 1‒c. Detect primary-key column automatically
+        # 1-c. Detect PK column
         try:
-            conn = get_connection(db)
-            cur = conn.cursor()
+            conn = get_connection(db); cur = conn.cursor()
             cur.execute(
-                f"SHOW KEYS FROM `{tbl}` WHERE Key_name = 'PRIMARY'"
+                f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'"
             )
             pk_info = cur.fetchone()
         finally:
-            cur.close()
-            conn.close()
+            cur.close(); conn.close()
 
-        pk_col_auto = pk_info[4] if pk_info else cols[0]  # Column_name
+        pk_col_auto = pk_info[4] if pk_info else cols[0]   # Column_name
         pk_col = st.selectbox(
             "Primary-key column",
             cols,
             index=cols.index(pk_col_auto),
         )
 
-        # 1‒d. Original vs editable DataFrames
+        # 1-d. DataFrames
         orig_df = pd.DataFrame(rows, columns=cols)
         edited_df = st.data_editor(
             orig_df,
-            num_rows="dynamic",        # allow adding rows
+            num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor",
-        ).where(pd.notnull, None)      # convert NaN→None for MySQL
+        )
+
+        # Convert every pd.NA → None once to avoid ambiguous truth values
+        edited_df = edited_df.where(pd.notnull, None)
 
         # ------------------------------------------------------------------
-        # 1-e. SAVE CHANGES
+        # 1-e. SAVE
         # ------------------------------------------------------------------
         if st.button("Save Changes", key="save_btn"):
             try:
-                conn = get_connection(db)
-                cur = conn.cursor()
+                conn = get_connection(db); cur = conn.cursor()
 
-                # ---- DELETES (rows present before but not after) ----------
-                # full-row diff instead of PK-set diff to catch blank shells
+                # ---------- DELETES (rows present before, absent after) ----
                 diff_left = (
                     orig_df.merge(
                         edited_df,
@@ -129,7 +120,7 @@ def render_edit_page(get_connection, simple_rerun):
                         how="left",
                         indicator=True,
                     )
-                    .query("_merge == 'left_only'")
+                    .query("_merge=='left_only'")
                 )
                 del_pks = diff_left[pk_col].dropna().tolist()
                 del_cnt = 0
@@ -140,15 +131,14 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     del_cnt += cur.rowcount
 
-                # ---- UPDATES (same PK, changed cells) --------------------
+                # ---------- UPDATES (cells changed) -----------------------
                 upd_cnt = 0
                 for pk_val in edited_df[pk_col].dropna().unique():
                     old_rows = orig_df.loc[orig_df[pk_col] == pk_val]
                     new_rows = edited_df.loc[edited_df[pk_col] == pk_val]
 
                     if old_rows.empty or new_rows.empty:
-                        # Safety guard: skip if row vanished mid-edit
-                        continue
+                        continue  # safety guard
 
                     row_old = old_rows.iloc[0]
                     row_new = new_rows.iloc[0]
@@ -162,26 +152,22 @@ def render_edit_page(get_connection, simple_rerun):
                             )
                             upd_cnt += cur.rowcount
 
-                # ---- INSERTS (rows with NULL/blank PK) -------------------
+                # ---------- INSERTS (rows with NULL / blank PK) -----------
                 insert_rows = edited_df[edited_df[pk_col].isna()]
                 ins_cnt = 0
                 for _, row in insert_rows.iterrows():
-                    # skip completely blank placeholder rows
-                    if all(
-                        row[c] in (None, "", pd.NA)
-                        for c in cols
-                    ):
+                    # Skip completely blank rows
+                    if all((pd.isna(row[c]) or row[c] == "") for c in cols):
                         continue
                     placeholders = ", ".join("%s" for _ in cols)
-                    col_list = ", ".join(f"`{c}`" for c in cols)
+                    col_list     = ", ".join(f"`{c}`" for c in cols)
                     cur.execute(
-                        f"INSERT INTO `{tbl}` ({col_list}) "
-                        f"VALUES ({placeholders})",
+                        f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
                         tuple(row[c] for c in cols),
                     )
                     ins_cnt += cur.rowcount
 
-                # ---- Commit + feedback -----------------------------------
+                # ---------- COMMIT & FEEDBACK ----------------------------
                 if del_cnt or upd_cnt or ins_cnt:
                     conn.commit()
                     parts = []
@@ -197,8 +183,7 @@ def render_edit_page(get_connection, simple_rerun):
                 conn.rollback()
                 st.error(f"Save failed: {e}")
             finally:
-                cur.close()
-                conn.close()
+                cur.close(); conn.close()
 
     # ======================================================================
     # TAB 2 – Free SQL / DDL Editor
@@ -225,8 +210,7 @@ def render_edit_page(get_connection, simple_rerun):
                 st.warning("Nothing to run."); return
 
             try:
-                conn = get_connection(db)
-                cur = conn.cursor()
+                conn = get_connection(db); cur = conn.cursor()
                 any_write = False
 
                 for idx, stmt in enumerate(stmts, 1):
@@ -241,7 +225,7 @@ def render_edit_page(get_connection, simple_rerun):
                             ),
                             use_container_width=True,
                         )
-                    else:             # UPDATE / INSERT / DELETE
+                    else:              # UPDATE / INSERT / DELETE
                         any_write = True
                         st.success(f"{cur.rowcount} row(s) affected.")
 
@@ -253,5 +237,4 @@ def render_edit_page(get_connection, simple_rerun):
             except Exception as e:
                 st.error(f"Execution failed: {e}")
             finally:
-                cur.close()
-                conn.close()
+                cur.close(); conn.close()
