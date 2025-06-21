@@ -36,6 +36,7 @@ def render_edit_page(get_connection, simple_rerun):
 
     # TAB 1: Spreadsheet Editor
     with tab_spreadsheet:
+        # Choose table
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute("SHOW TABLES")
@@ -48,7 +49,7 @@ def render_edit_page(get_connection, simple_rerun):
             return
         tbl = st.selectbox("Select Table", tables)
 
-        # Fetch all rows (no limit) for editing
+        # Fetch full table
         conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}`")
         cols = [d[0] for d in cur.description]
@@ -56,9 +57,14 @@ def render_edit_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
         df_orig = pd.DataFrame(rows, columns=cols)
-        edited_df = st.data_editor(df_orig, num_rows="dynamic", use_container_width=True)
+        st.markdown("**Edit rows below:**")
+        edited_df = st.data_editor(
+            df_orig,
+            use_container_width=True,
+            num_rows="dynamic",
+        )
 
-        # Primary key selection
+        # Select primary key column
         pk_default = cols[0]
         for c in cols:
             if 'id' in c.lower():
@@ -67,29 +73,37 @@ def render_edit_page(get_connection, simple_rerun):
         pk_col = st.selectbox("Primary-key column", cols, index=cols.index(pk_default))
 
         if st.button("Save Changes"):
-            # Map original and new rows by PK
-            orig_map = {row[cols.index(pk_col)]: row for row in rows}
-            new_map = {r[pk_col]: r for _, r in edited_df.iterrows() if not pd.isna(r[pk_col])}
+            # Prepare mappings
+            df_orig_indexed = df_orig.set_index(pk_col)
+            # Rows with valid PK in edited
+            edited_valid = edited_df.dropna(subset=[pk_col])
+            edited_indexed = edited_valid.set_index(pk_col)
 
-            orig_keys = set(orig_map.keys())
-            new_keys = set(new_map.keys())
+            orig_keys = set(df_orig_indexed.index)
+            new_keys = set(edited_indexed.index)
 
+            # Deletions: present in orig but not in new
             deletions = orig_keys - new_keys
-            additions_keys = new_keys - orig_keys
-            updates_keys = orig_keys & new_keys
-
-            additions = [new_map[k] for k in additions_keys]
+            # Additions: rows in edited without PK or new PKs
+            additions = []
+            for idx, row in edited_df.iterrows():
+                val = row.get(pk_col)
+                if pd.isna(val) or val not in orig_keys:
+                    # treat as new row if any non-null value present
+                    if any(pd.notna(row[c]) and row[c] != '' for c in cols if c != pk_col):
+                        additions.append(row)
+            # Updates: intersection of keys where values differ
             updates = []
-            for k in updates_keys:
-                old_row = orig_map[k]
-                new_row = new_map[k]
+            for key in orig_keys & new_keys:
+                old = df_orig_indexed.loc[key]
+                new = edited_indexed.loc[key]
                 for col in cols:
-                    old_val = old_row[cols.index(col)]
-                    new_val = new_row[col]
-                    if pd.isna(old_val) and pd.isna(new_val):
+                    old_val = old[col]
+                    new_val = new[col]
+                    if (pd.isna(old_val) and pd.isna(new_val)):
                         continue
                     if old_val != new_val:
-                        updates.append((col, new_val, k))
+                        updates.append((col, new_val, key))
 
             if not (deletions or additions or updates):
                 st.info("Nothing changed.")
@@ -97,21 +111,21 @@ def render_edit_page(get_connection, simple_rerun):
 
             try:
                 conn = get_connection(db); cur = conn.cursor()
-                # Deletions
-                for k in deletions:
-                    cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}` = %s", (k,))
-                # Updates
-                for col, val, k in updates:
+                # Apply deletions
+                for key in deletions:
+                    cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}` = %s", (key,))
+                # Apply updates
+                for col, val, key in updates:
                     cur.execute(
                         f"UPDATE `{tbl}` SET `{col}` = %s WHERE `{pk_col}` = %s",
-                        (val, k)
+                        (val, key)
                     )
-                # Additions
-                for new_row in additions:
+                # Apply additions
+                for row in additions:
                     cols_ins, vals_ins = [], []
                     for col in cols:
-                        v = new_row[col]
-                        if pd.isna(v) or (col == pk_col and v in (None, '', 0)):
+                        v = row[col]
+                        if pd.isna(v) or (col == pk_col and (v in (None, '', 0))):
                             continue
                         cols_ins.append(f"`{col}`")
                         vals_ins.append(v)
