@@ -5,8 +5,9 @@ Streamlit entry-point.
 Pages in this file:
     • Provision Database
     • Database Browser
+Delegated pages (separate modules):
     • Edit Database     → edit.py
-    • Add Data          → add.py          ← NEW
+    • Add Data          → add.py
     • Connection Info   → connection.py
     • Delete            → delete.py
 """
@@ -55,7 +56,7 @@ PAGES = [
     "Provision Database",
     "Database Browser",
     "Edit Database",
-    "Add Data",           # ← NEW
+    "Add Data",
     "Connection Info",
     "Delete",
 ]
@@ -74,31 +75,38 @@ def page_provision():
     with st.form("create_db_form"):
         db_name = st.text_input("Database name (letters, numbers, underscores)")
         tables_sql = st.text_area(
-            "Table-definition SQL",
-            "CREATE TABLE users (\n"
-            "  id INT PRIMARY KEY AUTO_INCREMENT,\n"
-            "  name VARCHAR(50),\n"
-            "  email VARCHAR(100)\n);",
-            height=180,
+            "Table-definition SQL (multiple statements OK)",
+            height=240,
         )
         create = st.form_submit_button("Create")
     if not create:
         return
 
     if not db_name.replace("_", "").isalnum() or " " in db_name:
-        st.error("Invalid database name."); return
+        st.error("Invalid database name.")
+        return
 
     try:
         conn = get_connection(); cur = conn.cursor()
+        # 1) CREATE DATABASE
         cur.execute(
             f"CREATE DATABASE `{db_name}` "
             "DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
         )
         conn.database = db_name
-        for stmt in [s.strip() for s in re.split(r";\s*", tables_sql) if s.strip()]:
-            cur.execute(stmt + ";")
+
+        # 2) CLEAN and RUN all statements at once (including triggers)
+        #    - strip out any DELIMITER lines
+        cleaned_sql = "\n".join(
+            line for line in tables_sql.splitlines()
+            if not line.strip().upper().startswith("DELIMITER")
+        )
+        # execute multi-statement SQL
+        for _ in cur.execute(cleaned_sql, multi=True):
+            pass
+
         conn.commit()
-        st.success(f"🎉 `{db_name}` and table(s) created!")
+        st.success(f"🎉 `{db_name}` and tables/triggers created!")
 
         st.markdown("### Quick connect")
         st.code(
@@ -107,7 +115,7 @@ def page_provision():
             language="bash",
         )
     except Exception as e:
-        st.error(e)
+        st.error(f"Error while provisioning: {e}")
     finally:
         cur.close(); conn.close()
 
@@ -153,7 +161,7 @@ def page_browser():
 
 # ── IMPORT DELEGATED PAGES ──────────────────────────────────────────────────
 from edit import render_edit_page
-from add import render_add_page             # ← NEW
+from add import render_add_page
 from connection import render_connection_page
 from delete import render_delete_page
 
@@ -162,6 +170,6 @@ match st.session_state.page:
     case "Provision Database": page_provision()
     case "Database Browser":   page_browser()
     case "Edit Database":      render_edit_page(get_connection, _simple_rerun)
-    case "Add Data":           render_add_page(get_connection, _simple_rerun)  # ← NEW
+    case "Add Data":           render_add_page(get_connection, _simple_rerun)
     case "Connection Info":    render_connection_page(get_connection)
     case "Delete":             render_delete_page(get_connection, _simple_rerun)
