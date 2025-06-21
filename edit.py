@@ -60,7 +60,6 @@ def render_edit_page(get_connection, simple_rerun):
         pk_guess = cols[0] if "id" in cols[0].lower() else cols[0]
         pk_col = st.selectbox("Primary-key column", cols, index=cols.index(pk_guess))
 
-        # Show editable dataframe
         df_orig = pd.DataFrame(rows, columns=cols)
         edited_df = st.data_editor(
             df_orig,
@@ -69,17 +68,19 @@ def render_edit_page(get_connection, simple_rerun):
         )
 
         if st.button("Save Changes", key="save_changes_btn"):
-            # 1) Detect updates
+            # Detect updates only for existing rows
             updates = []
-            for i, new_row in edited_df.iterrows():
+            row_count = len(rows)
+            for i in range(min(row_count, len(edited_df))):
+                new_row = edited_df.iloc[i]
                 old_row = rows[i]
                 for c in cols:
                     if new_row[c] != old_row[cols.index(c)]:
                         updates.append((c, new_row[c], pk_col, new_row[pk_col]))
 
-            # 2) Detect deletions
+            # Detect deletions
             orig_pks = {old[cols.index(pk_col)] for old in rows}
-            new_pks = set(edited_df[pk_col].tolist())
+            new_pks = set(edited_df[pk_col].dropna().tolist())
             deletions = orig_pks - new_pks
 
             if not updates and not deletions:
@@ -138,8 +139,7 @@ def render_edit_page(get_connection, simple_rerun):
                     if cur.with_rows:
                         data = cur.fetchmany(200)
                         cols2 = [d[0] for d in cur.description]
-                        st.dataframe(pd.DataFrame(data, columns=cols2),
-                                     use_container_width=True)
+                        st.dataframe(pd.DataFrame(data, columns=cols2), use_container_width=True)
                         if cur.rowcount == -1:
                             st.caption("Showing first 200 rows.")
                     else:
