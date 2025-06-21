@@ -1,6 +1,6 @@
 from __future__ import annotations
 """
-edit.py  –  Table spreadsheet editor + free-form SQL editor with add/delete functionality.
+edit.py  –  Unified Data Editor: add, delete, and update rows from a single grid.
 """
 import re
 import streamlit as st
@@ -8,11 +8,15 @@ import pandas as pd
 
 EXCLUDED_SYS_DBS = ("information_schema", "mysql", "performance_schema", "sys")
 
+# --------------------------------------------------------------------------- #
+#  Main entry point                                                           #
+# --------------------------------------------------------------------------- #
 
 def render_edit_page(get_connection, simple_rerun):
+    """Main entry displayed by app.py."""
     st.title("Edit Database")
 
-    # Select database
+    # ── Select database ───────────────────────────────────────────────────────
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SHOW DATABASES")
@@ -24,13 +28,14 @@ def render_edit_page(get_connection, simple_rerun):
         return
     db = st.selectbox("Database", dbs)
 
+    # ── Tabs: Data Editor vs SQL Editor ───────────────────────────────────────
     tab_data, tab_sql = st.tabs(["📝 Data Editor", "🛠️ SQL Editor"])
 
-    # ----------------------
-    # TAB: Data Editor
-    # ----------------------
+    # ======================================================================
+    # TAB 1  –  DATA EDITOR (add, delete, update via single grid)
+    # ======================================================================
     with tab_data:
-        # Select table
+        # Fetch tables
         conn = get_connection(db)
         cur = conn.cursor()
         cur.execute("SHOW TABLES")
@@ -42,47 +47,18 @@ def render_edit_page(get_connection, simple_rerun):
             return
         tbl = st.selectbox("Table", tables)
 
-        # Fetch columns
+        # Fetch column metadata
         conn = get_connection(db)
         cur = conn.cursor()
         cur.execute(f"DESCRIBE `{tbl}`")
         cols_meta = cur.fetchall()  # (Field, Type, Null, Key, Default, Extra)
         cur.close(); conn.close()
         col_names = [c[0] for c in cols_meta]
+        # Identify auto-increment PK (if any)
+        auto_inc_cols = {field for field, *_ in cols_meta if 'auto_increment' in _[5].lower()}  # Extra at index 5
 
-        # --- Add new row form ---
-        with st.form("add_row_form"):
-            st.markdown("### ➕ Add New Row")
-            new_vals: dict[str, object] = {}
-            for field, col_type, *_ in cols_meta:
-                if "auto_increment" in col_type.lower():
-                    continue
-                label = f"{field} ({col_type})"
-                if "int" in col_type:
-                    new_vals[field] = st.number_input(label, value=0, step=1, key=f"add_{field}")
-                else:
-                    new_vals[field] = st.text_input(label, value="", key=f"add_{field}")
-            add_sub = st.form_submit_button("Insert Row")
-        if add_sub:
-            cols_str = ", ".join(f"`{f}`" for f in new_vals)
-            placeholders = ", ".join("%s" for _ in new_vals)
-            try:
-                conn = get_connection(db)
-                cur = conn.cursor()
-                cur.execute(
-                    f"INSERT INTO `{tbl}` ({cols_str}) VALUES ({placeholders})",
-                    list(new_vals.values()),
-                )
-                conn.commit()
-                st.success("Inserted new row.")
-                simple_rerun()
-            except Exception as e:
-                st.error(f"Insert failed: {e}")
-            finally:
-                cur.close(); conn.close()
-
-        # --- Load existing data ---
-        limit = st.number_input("Rows to load", min_value=1, max_value=1000, value=20, key="load_limit")
+        # Load existing data
+        limit = st.number_input("Rows to load", min_value=1, max_value=1000, value=50, key="load_limit")
         conn = get_connection(db)
         cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
@@ -90,79 +66,103 @@ def render_edit_page(get_connection, simple_rerun):
         headers = [d[0] for d in cur.description]
         cur.close(); conn.close()
 
-        if not rows:
-            st.warning("Table is empty.")
-            return
-        df = pd.DataFrame(rows, columns=headers)
+        orig_df = pd.DataFrame(rows, columns=headers)
 
-        # --- Delete rows form ---
-        with st.form("delete_rows_form"):
-            st.markdown("### 🗑️ Delete Rows")
-            pk_guess = headers[0]
-            pk_col = st.selectbox("Primary key column", headers, index=0, key="del_pk_col")
-            to_del = st.multiselect("Select PK(s) to delete", df[pk_col].tolist(), key="del_select")
-            del_sub = st.form_submit_button("Delete Selected Rows")
-        if del_sub:
-            if to_del:
-                try:
-                    conn = get_connection(db)
-                    cur = conn.cursor()
-                    for pk in to_del:
-                        cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}` = %s", (pk,))
-                    conn.commit()
-                    st.success(f"Deleted {len(to_del)} row(s).")
-                    simple_rerun()
-                except Exception as e:
-                    st.error(f"Delete failed: {e}")
-                finally:
-                    cur.close(); conn.close()
-            else:
-                st.info("No rows selected to delete.")
-
-        # --- In-place edits ---
-        st.markdown("### ✏️ Edit Rows")
-        edited = st.data_editor(
-            df,
+        st.markdown("### Edit, add, or delete rows directly below:")
+        edited_df = st.data_editor(
+            orig_df,
             num_rows="dynamic",
             use_container_width=True,
+            row_deletable=True,
             key="data_editor",
         )
-        if st.button("Save Changes", key="save_edit_btn"):
-            # detect changes
-            changes: list[tuple[str, object, str, object]] = []
-            for i, row in edited.iterrows():
-                orig = rows[i]
-                for col in headers:
-                    if row[col] != orig[headers.index(col)]:
-                        changes.append((col, row[col], headers[0], row[headers[0]]))
-            if not changes:
-                st.info("No changes detected.")
-            else:
-                try:
-                    conn = get_connection(db)
-                    cur = conn.cursor()
-                    for col, new_val, pk, pk_val in changes:
-                        cur.execute(
-                            f"UPDATE `{tbl}` SET `{col}`=%s WHERE `{pk}`=%s",
-                            (new_val, pk_val),
-                        )
-                    conn.commit()
-                    st.success(f"Applied {len(changes)} update(s).")
-                    simple_rerun()
-                except Exception as e:
-                    st.error(f"Update failed: {e}")
-                finally:
-                    cur.close(); conn.close()
 
-    # ----------------------
-    # TAB: SQL Editor
-    # ----------------------
+        if st.button("Save Changes", key="btn_save_all"):
+            # Determine primary key column (first non-auto-inc)
+            pk_col = headers[0]
+            for field, *_ in cols_meta:
+                if 'PRI' in _[3]:  # Key at index 3
+                    pk_col = field
+                    break
+
+            # Detect deletions: original PKs not in edited
+            orig_pks = set(orig_df[pk_col].tolist())
+            edited_pks = set(edited_df[pk_col].dropna().tolist())
+            deleted_pks = orig_pks - edited_pks
+
+            # Detect inserts: rows in edited beyond original or with null/NaN PK
+            new_rows_df = edited_df[edited_df[pk_col].isna() | ~edited_df[pk_col].isin(orig_pks)]
+
+            # Detect updates: existing rows where any non-PK, non-auto-inc column changed
+            updates = []  # tuples (col, new_val, pk, pk_val)
+            for idx, row in edited_df.iterrows():
+                if row[pk_col] in orig_pks:
+                    orig_row = orig_df[orig_df[pk_col] == row[pk_col]].iloc[0]
+                    for col in headers:
+                        if col == pk_col or col in auto_inc_cols:
+                            continue
+                        if pd.isna(row[col]) and pd.isna(orig_row[col]):
+                            continue
+                        if row[col] != orig_row[col]:
+                            updates.append((col, row[col], pk_col, row[pk_col]))
+
+            # Execute DB operations
+            try:
+                conn = get_connection(db)
+                cur = conn.cursor()
+                # Deletions
+                for pk in deleted_pks:
+                    cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}` = %s", (pk,))
+                # Inserts
+                for _, new_row in new_rows_df.iterrows():
+                    # Prepare insert columns excluding auto-inc PK
+                    insert_cols = [c for c in headers if c not in auto_inc_cols]
+                    vals = [new_row[c] for c in insert_cols]
+                    cols_clause = ", ".join(f"`{c}`" for c in insert_cols)
+                    placeholders = ", ".join(["%s"] * len(insert_cols))
+                    cur.execute(
+                        f"INSERT INTO `{tbl}` ({cols_clause}) VALUES ({placeholders})",
+                        vals,
+                    )
+                # Updates
+                for col, new_val, pk, pk_val in updates:
+                    cur.execute(
+                        f"UPDATE `{tbl}` SET `{col}` = %s WHERE `{pk}` = %s",
+                        (new_val, pk_val),
+                    )
+                conn.commit()
+                msg_parts = []
+                if deleted_pks:
+                    msg_parts.append(f"{len(deleted_pks)} deletion(s)")
+                if len(new_rows_df) > 0:
+                    msg_parts.append(f"{len(new_rows_df)} insertion(s)")
+                if updates:
+                    msg_parts.append(f"{len(updates)} update(s)")
+                st.success("✅ " + " and ".join(msg_parts) + " applied!")
+                simple_rerun()
+            except Exception as e:
+                st.error(f"Save failed: {e}")
+            finally:
+                cur.close(); conn.close()
+
+    # ======================================================================
+    # TAB 2  –  FREE SQL EDITOR
+    # ======================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
-        default = "-- Enter SQL statements; separate with semicolons"
-        sql = st.text_area("SQL", value=default, height=200, key="sql_text")
-        if st.button("Execute SQL", key="exec_sql_btn"):
-            stmts = [s.strip() for s in re.split(r";\s*", sql) if s.strip()]
+        default_sql = (
+            "-- Example:\n"
+            "SELECT * FROM your_table LIMIT 10;\n\n"
+            "-- UPDATE your_table SET col = 'value' WHERE id = 1;"
+        )
+        sql_code = st.text_area(
+            "SQL statements (separated by semicolons)",
+            value=default_sql,
+            height=200,
+            key="sql_input",
+        )
+        if st.button("Execute SQL", key="btn_execute_sql"):
+            stmts = [s.strip() for s in re.split(r";\s*", sql_code) if s.strip()]
             if not stmts:
                 st.warning("Nothing to run.")
             else:
@@ -171,7 +171,7 @@ def render_edit_page(get_connection, simple_rerun):
                     cur = conn.cursor()
                     any_write = False
                     for idx, stmt in enumerate(stmts, start=1):
-                        st.markdown(f"#### Statement {idx}")
+                        st.markdown(f"##### Statement {idx}")
                         cur.execute(stmt)
                         if cur.with_rows:
                             res = cur.fetchmany(200)
