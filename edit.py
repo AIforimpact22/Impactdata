@@ -68,29 +68,36 @@ def render_edit_page(get_connection, simple_rerun):
         pk_col = st.selectbox("Primary-key column", cols, index=cols.index(pk_default))
 
         if st.button("Save Changes"):
-            # Map original rows by PK
+            # Build original map: pk -> tuple(row)
             orig_map = {row[cols.index(pk_col)]: row for row in rows}
-            orig_pks = set(orig_map.keys())
-            # Map new rows by PK (dropna)
+            orig_keys = set(orig_map.keys())
+
+            # Build new map: pk -> Series for rows with non-null PK
             new_map = {}
             for _, r in edited_df.iterrows():
-                val = r[pk_col]
-                if pd.isna(val):
+                key = r[pk_col]
+                if pd.isna(key):
                     continue
-                new_map[val] = r
-            new_pks = set(new_map.keys())
+                new_map[key] = r
+            new_keys = set(new_map.keys())
 
-            deletions = orig_pks - new_pks
-            additions = [r for k, r in new_map.items() if k not in orig_pks]
+            # Determine operations
+            deletions = orig_keys - new_keys
+            additions_keys = new_keys - orig_keys
+            updates_keys = orig_keys & new_keys
+
+            additions = [new_map[k] for k in additions_keys]
             updates = []
-            for k in orig_pks & new_pks:
-                old = orig_map[k]
-                new = new_map[k]
+            for k in updates_keys:
+                old_row = orig_map[k]
+                new_row = new_map[k]
                 for col in cols:
-                    if pd.isna(old[cols.index(col)]) and pd.isna(new[col]):
+                    old_val = old_row[cols.index(col)]
+                    new_val = new_row[col]
+                    if pd.isna(old_val) and pd.isna(new_val):
                         continue
-                    if old[cols.index(col)] != new[col]:
-                        updates.append((col, new[col], k))
+                    if old_val != new_val:
+                        updates.append((col, new_val, k))
 
             if not (deletions or additions or updates):
                 st.info("Nothing changed.")
@@ -98,30 +105,31 @@ def render_edit_page(get_connection, simple_rerun):
 
             try:
                 conn = get_connection(db); cur = conn.cursor()
-                # Deletions
+                # Apply deletions
                 for k in deletions:
                     cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}` = %s", (k,))
-                # Updates
+                # Apply updates
                 for col, val, k in updates:
                     cur.execute(
                         f"UPDATE `{tbl}` SET `{col}` = %s WHERE `{pk_col}` = %s",
                         (val, k)
                     )
-                # Additions
-                for r in additions:
+                # Apply additions
+                for new_row in additions:
                     cols_ins = []
                     vals_ins = []
                     for col in cols:
-                        v = r[col]
-                        if pd.isna(v) or (col == pk_col and v == ''):
+                        v = new_row[col]
+                        if pd.isna(v) or (col == pk_col and v in (None, '', 0)):
                             continue
                         cols_ins.append(f"`{col}`")
                         vals_ins.append(v)
-                    placeholders = ','.join(['%s'] * len(vals_ins))
-                    cols_str = ','.join(cols_ins)
-                    cur.execute(
-                        f"INSERT INTO `{tbl}` ({cols_str}) VALUES ({placeholders})", tuple(vals_ins)
-                    )
+                    if vals_ins:
+                        placeholders = ','.join(['%s'] * len(vals_ins))
+                        cols_str = ','.join(cols_ins)
+                        cur.execute(
+                            f"INSERT INTO `{tbl}` ({cols_str}) VALUES ({placeholders})", tuple(vals_ins)
+                        )
                 conn.commit()
                 msgs = []
                 if additions:
