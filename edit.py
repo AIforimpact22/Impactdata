@@ -69,7 +69,7 @@ def render_edit_page(get_connection, simple_rerun):
         )
 
         if st.button("Save Changes", key="save_changes_btn"):
-            # Prepare sets and lists
+            # Prepare original and new PK sets
             orig_pks = {row[cols.index(pk_col)] for row in rows}
             new_pks = set(edited_df[pk_col].dropna().tolist())
 
@@ -81,10 +81,8 @@ def render_edit_page(get_connection, simple_rerun):
             for idx, new_row in edited_df.iterrows():
                 pk_val = new_row[pk_col]
                 if pd.isna(pk_val) or pk_val not in orig_pks:
-                    # New row (no original PK match)
                     insertions.append(new_row)
                 else:
-                    # Potential update
                     old_row = rows[idx]
                     for c in cols:
                         if new_row[c] != old_row[cols.index(c)]:
@@ -112,15 +110,16 @@ def render_edit_page(get_connection, simple_rerun):
 
                 # Apply insertions
                 for new_row in insertions:
-                    # Build INSERT ignoring auto-increment PK
                     cols_to_insert = []
                     vals = []
                     for field in cols:
                         if field == pk_col:
-                            # If PK is auto-inc, skip it
                             continue
+                        value = new_row[field]
+                        if pd.isna(value):
+                            value = None
                         cols_to_insert.append(f"`{field}`")
-                        vals.append(new_row[field])
+                        vals.append(value)
                     cols_sql = ", ".join(cols_to_insert)
                     placeholders = ", ".join("%s" for _ in vals)
                     cur.execute(
