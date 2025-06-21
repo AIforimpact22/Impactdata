@@ -1,14 +1,9 @@
 """
 edit.py – Table spreadsheet editor + free-form SQL editor.
 
-Public API (imported by app.py)
---------------------------------
+Public API (used by app.py)
+---------------------------
     render_edit_page(get_connection, simple_rerun)
-
-Callbacks expected
-------------------
-get_connection(db_name:str|None)  → mysql.connector connection
-simple_rerun()                    → sets a flag then st.rerun()
 """
 from __future__ import annotations
 import re
@@ -19,14 +14,11 @@ EXCLUDED_SYS_DBS = ("information_schema", "mysql",
                     "performance_schema", "sys")
 
 
-# --------------------------------------------------------------------------- #
-#  Main entry point                                                           #
-# --------------------------------------------------------------------------- #
 def render_edit_page(get_connection, simple_rerun):
     st.title("Edit Database")
 
     # ───────────────────────────────────────────────────────────────────────
-    # Choose DATABASE
+    # Pick database
     # ───────────────────────────────────────────────────────────────────────
     try:
         conn = get_connection(); cur = conn.cursor()
@@ -40,14 +32,13 @@ def render_edit_page(get_connection, simple_rerun):
 
     db = st.selectbox("Database", dbs)
 
-    # Two tabs
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
     # ======================================================================
     # TAB 1 – Spreadsheet Editor
     # ======================================================================
     with tab_sheet:
-        # pick table & row limit
+        # choose table
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute("SHOW TABLES")
@@ -68,94 +59,88 @@ def render_edit_page(get_connection, simple_rerun):
         rows = cur.fetchall()
         cur.close(); conn.close()
 
-        # ── detect PK column from MySQL metadata ───────────────────────────
+        # detect PK
         try:
             conn = get_connection(db); cur = conn.cursor()
-            cur.execute(
-                f"SHOW KEYS FROM `{tbl}` WHERE Key_name = 'PRIMARY'")
+            cur.execute("SHOW KEYS FROM `{}` WHERE Key_name='PRIMARY'".format(tbl))
             pk_info = cur.fetchone()
         finally:
             cur.close(); conn.close()
 
-        pk_col_auto = pk_info[4] if pk_info else cols[0]  # Column_name
+        pk_col_auto = pk_info[4] if pk_info else cols[0]           # Column_name
         pk_col = st.selectbox("Primary-key column", cols,
                               index=cols.index(pk_col_auto))
 
-        orig_df = pd.DataFrame(rows, columns=cols)
-
+        # DataFrames
+        orig_df   = pd.DataFrame(rows, columns=cols)
         edited_df = st.data_editor(
             orig_df,
             num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor"
-        )
+        ).where(pd.notnull, None)   # convert NaN → None
 
+        # ------------------------------------------------------------------
+        # SAVE
+        # ------------------------------------------------------------------
         if st.button("Save Changes", key="save_btn"):
-            # Replace NaNs with None to make PyMySQL happy
-            edited_df = edited_df.where(pd.notnull(edited_df), None)
-
             try:
                 conn = get_connection(db); cur = conn.cursor()
 
-                # ------------------ differences ---------------------------
-                # sets of PK values (None removed)
-                orig_pk_set   = set(orig_df[pk_col].dropna())
-                edited_pk_set = set(edited_df[pk_col].dropna())
+                # --- DELETES: full-row diff rather than set diff -----------
+                diff_left = (
+                    orig_df.merge(
+                        edited_df,
+                        on=cols,
+                        how="left",
+                        indicator=True
+                    )
+                    .query("_merge=='left_only'")
+                )
+                del_pks = diff_left[pk_col].dropna().tolist()
+                del_cnt = 0
+                for pk_val in del_pks:
+                    cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}`=%s", (pk_val,))
+                    del_cnt += cur.rowcount
 
-                # *Deletes* = PKs present before but not after
-                to_delete = orig_pk_set - edited_pk_set
-
-                # *Updates* = rows with same PK but different cells
-                to_update = []
-                for pk_val in edited_pk_set & orig_pk_set:
+                # --- UPDATES -----------------------------------------------
+                upd_cnt = 0
+                for pk_val in edited_df[pk_col].dropna():
                     row_new = edited_df.loc[edited_df[pk_col] == pk_val].iloc[0]
                     row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
                     for c in cols:
                         if row_new[c] != row_old[c]:
-                            to_update.append((c, row_new[c], pk_val))
+                            cur.execute(
+                                f"UPDATE `{tbl}` SET `{c}`=%s WHERE `{pk_col}`=%s",
+                                (row_new[c], pk_val)
+                            )
+                            upd_cnt += cur.rowcount
 
-                # *Inserts* = rows whose PK was NA before
+                # --- INSERTS ----------------------------------------------
                 insert_rows = edited_df[edited_df[pk_col].isna()]
-
-                # ---------------- execute SQL -----------------------------
-                del_cnt = upd_cnt = ins_cnt = 0
-
-                for pk_val in to_delete:
-                    cur.execute(f"DELETE FROM `{tbl}` WHERE `{pk_col}`=%s",
-                                (pk_val,))
-                    del_cnt += cur.rowcount
-
-                for col, new_val, pk_val in to_update:
-                    cur.execute(
-                        f"UPDATE `{tbl}` SET `{col}`=%s WHERE `{pk_col}`=%s",
-                        (new_val, pk_val)
-                    )
-                    upd_cnt += cur.rowcount
-
+                ins_cnt = 0
                 for _, row in insert_rows.iterrows():
                     if all(row[c] in (None, "", pd.NA) for c in cols):
-                        # skip completely blank rows
                         continue
                     placeholders = ", ".join("%s" for _ in cols)
-                    col_list = ", ".join(f"`{c}`" for c in cols)
+                    col_list     = ", ".join(f"`{c}`" for c in cols)
                     cur.execute(
                         f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
                         tuple(row[c] for c in cols)
                     )
                     ins_cnt += cur.rowcount
 
+                # commit & feedback
                 if del_cnt or upd_cnt or ins_cnt:
                     conn.commit()
+                    parts = []
+                    if ins_cnt: parts.append(f"🟢 {ins_cnt} insert")
+                    if upd_cnt: parts.append(f"🟡 {upd_cnt} update")
+                    if del_cnt: parts.append(f"🔴 {del_cnt} delete")
+                    st.success(" | ".join(parts) + " committed.")
+                    simple_rerun()
                 else:
                     st.info("Nothing to save – no changes detected.")
-                    return
-
-                msg = []
-                if ins_cnt: msg.append(f"🟢 {ins_cnt} insert")
-                if upd_cnt: msg.append(f"🟡 {upd_cnt} update")
-                if del_cnt: msg.append(f"🔴 {del_cnt} delete")
-                st.success(" | ".join(msg) + " committed.")
-                simple_rerun()
 
             except Exception as e:
                 conn.rollback()
@@ -164,7 +149,7 @@ def render_edit_page(get_connection, simple_rerun):
                 cur.close(); conn.close()
 
     # ======================================================================
-    # TAB 2 – Free SQL / DDL
+    # TAB 2 – SQL Editor
     # ======================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
@@ -175,12 +160,12 @@ def render_edit_page(get_connection, simple_rerun):
             "-- UPDATE your_table SET col = 'value' WHERE id = 1;"
         )
         sql_code = st.text_area(
-            "SQL statements (one or more, separated by semicolons)",
+            "SQL statements (semicolon-separated)",
             value=default_sql,
             height=200,
         )
 
-        if st.button("Execute", key="execute_sql_btn"):
+        if st.button("Execute", key="exec_sql"):
             stmts = [s.strip() for s in re.split(r";\s*", sql_code) if s.strip()]
             if not stmts:
                 st.warning("Nothing to run."); return
@@ -188,27 +173,21 @@ def render_edit_page(get_connection, simple_rerun):
             try:
                 conn = get_connection(db); cur = conn.cursor()
                 any_write = False
-
                 for idx, stmt in enumerate(stmts, 1):
                     st.markdown(f"##### Statement {idx}")
                     cur.execute(stmt)
-
-                    if cur.with_rows:   # SELECT or similar
+                    if cur.with_rows:
                         rows = cur.fetchmany(200)
-                        cols = [d[0] for d in cur.description]
-                        st.dataframe(pd.DataFrame(rows, columns=cols),
-                                     use_container_width=True)
-                        if cur.rowcount == -1:
-                            st.caption("Showing first 200 rows.")
-                    else:               # UPDATE / INSERT / DELETE
+                        st.dataframe(
+                            pd.DataFrame(rows, columns=[d[0] for d in cur.description]),
+                            use_container_width=True)
+                    else:
                         any_write = True
                         st.success(f"{cur.rowcount} row(s) affected.")
-
                 if any_write:
                     conn.commit()
                     st.success("Changes committed.")
                     simple_rerun()
-
             except Exception as e:
                 st.error(f"Execution failed: {e}")
             finally:
