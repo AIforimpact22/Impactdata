@@ -75,7 +75,7 @@ def page_provision():
         db_name = st.text_input("Database name (letters, numbers, underscores)")
         tables_sql = st.text_area(
             "Table-definition SQL (multiple statements OK)",
-            height=240,
+            height=260,
         )
         create = st.form_submit_button("Create")
     if not create:
@@ -94,23 +94,29 @@ def page_provision():
         )
         conn.database = db_name
 
-        # 2) Strip DELIMITER lines
+        # 2) Remove DELIMITER lines
         sql = "\n".join(
             line for line in tables_sql.splitlines()
             if not line.strip().upper().startswith("DELIMITER")
         )
 
-        # 3) Extract and run each CREATE TRIGGER ... END block intact
+        # 3) Extract CREATE TRIGGER ... END blocks
         trigger_blocks = re.findall(
             r"(CREATE\s+TRIGGER[\s\S]+?END)", sql, flags=re.IGNORECASE
         )
+
+        # 4) Remove trigger blocks from the main SQL so we can run tables first
         for tb in trigger_blocks:
-            cur.execute(tb)
             sql = sql.replace(tb, "")
 
-        # 4) Run all other statements split on semicolons
-        for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
+        # 5) Run all non-trigger statements (split on semicolons)
+        stmts = [s.strip() for s in sql.split(";") if s.strip()]
+        for stmt in stmts:
             cur.execute(stmt)
+
+        # 6) Finally, run each trigger block
+        for tb in trigger_blocks:
+            cur.execute(tb)
 
         conn.commit()
         st.success(f"🎉 `{db_name}` and tables/triggers created!")
