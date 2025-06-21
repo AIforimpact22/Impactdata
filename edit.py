@@ -1,5 +1,5 @@
-import re
 from __future__ import annotations
+import re
 import streamlit as st
 import pandas as pd
 
