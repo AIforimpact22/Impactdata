@@ -1,4 +1,3 @@
-# app.py
 """
 Streamlit entry-point.
 
@@ -95,15 +94,23 @@ def page_provision():
         )
         conn.database = db_name
 
-        # 2) CLEAN and RUN all statements at once (including triggers)
-        #    - strip out any DELIMITER lines
-        cleaned_sql = "\n".join(
+        # 2) Strip DELIMITER lines
+        sql = "\n".join(
             line for line in tables_sql.splitlines()
             if not line.strip().upper().startswith("DELIMITER")
         )
-        # execute multi-statement SQL
-        for _ in cur.execute(cleaned_sql, multi=True):
-            pass
+
+        # 3) Extract and run each CREATE TRIGGER ... END block intact
+        trigger_blocks = re.findall(
+            r"(CREATE\s+TRIGGER[\s\S]+?END)", sql, flags=re.IGNORECASE
+        )
+        for tb in trigger_blocks:
+            cur.execute(tb)
+            sql = sql.replace(tb, "")
+
+        # 4) Run all other statements split on semicolons
+        for stmt in [s.strip() for s in sql.split(";") if s.strip()]:
+            cur.execute(stmt)
 
         conn.commit()
         st.success(f"🎉 `{db_name}` and tables/triggers created!")
