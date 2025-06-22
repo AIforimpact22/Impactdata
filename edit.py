@@ -1,5 +1,5 @@
 """
-edit.py – Spreadsheet-style data editor + free-form SQL editor.
+edit.py – Spreadsheet-style editor + free-form SQL editor.
 
 Imported by app.py
 ------------------
@@ -9,7 +9,7 @@ Public API
 ----------
 render_edit_page(get_connection, simple_rerun)
 
-Expected callbacks
+Callbacks required
 ------------------
 get_connection(db: str | None) -> mysql.connector connection
 simple_rerun()                  -> sets a flag then st.rerun()
@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 import streamlit as st
 import pandas as pd
-import numpy as np   # ← NEW
+import numpy as np
 
 EXCLUDED_SYS_DBS = (
     "information_schema",
@@ -27,19 +27,15 @@ EXCLUDED_SYS_DBS = (
     "sys",
 )
 
-
 # --------------------------------------------------------------------------- #
 #  Utility: convert numpy / pandas scalars to pure Python                     #
 # --------------------------------------------------------------------------- #
 def _py(val):
     """Return a DB-safe pure-Python value (no numpy scalars)."""
-    # Handle pandas / numpy NA
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
-    # numpy.generic covers int64, float64, bool_, etc.
     if isinstance(val, np.generic):
         return val.item()
-    # pandas Timestamp → Python datetime
     if isinstance(val, pd.Timestamp):
         return val.to_pydatetime()
     return val
@@ -51,9 +47,9 @@ def _py(val):
 def render_edit_page(get_connection, simple_rerun):
     st.title("Edit Database")
 
-    # ────────────────────────────────────────────────────────────────────
-    # 1. Pick database
-    # ────────────────────────────────────────────────────────────────────
+    # ───────────────────────────────────────────────────────────────────
+    # 1 – Pick database
+    # ───────────────────────────────────────────────────────────────────
     try:
         conn = get_connection(); cur = conn.cursor()
         cur.execute("SHOW DATABASES")
@@ -66,7 +62,6 @@ def render_edit_page(get_connection, simple_rerun):
 
     db = st.selectbox("Database", dbs)
 
-    # Tabs
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
     # ======================================================================
@@ -87,19 +82,25 @@ def render_edit_page(get_connection, simple_rerun):
         tbl = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
 
-        # 1-b. Pull rows
+        # 1-b. Pull rows & column metadata
         conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
+
+        # ALSO grab column extras to detect generated columns
+        cur.execute(f"SHOW COLUMNS FROM `{tbl}`")
+        desc = cur.fetchall()   # Field, Type, Null, Key, Default, Extra
+        generated_cols = {
+            field for field, *_ , extra in desc
+            if "GENERATED" in extra.upper()
+        }
         cur.close(); conn.close()
 
         # 1-c. Detect PK column
         try:
             conn = get_connection(db); cur = conn.cursor()
-            cur.execute(
-                f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'"
-            )
+            cur.execute(f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'")
             pk_info = cur.fetchone()
         finally:
             cur.close(); conn.close()
@@ -118,10 +119,7 @@ def render_edit_page(get_connection, simple_rerun):
             num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor",
-        )
-
-        # Ensure every pd.NA → None to avoid ambiguity later
-        edited_df = edited_df.where(pd.notnull, None)
+        ).where(pd.notnull, None)   # convert pd.NA → None
 
         # ------------------------------------------------------------------
         # 1-e. SAVE
@@ -132,7 +130,7 @@ def render_edit_page(get_connection, simple_rerun):
 
                 orig_pk_set = set(orig_df[pk_col].dropna())
 
-                # ---------- DELETES (PK present before, missing after) -----
+                # ---------- DELETES ---------------------------------------
                 edited_pk_set = set(edited_df[pk_col].dropna())
                 del_pks = orig_pk_set - edited_pk_set
                 del_cnt = 0
@@ -143,13 +141,15 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     del_cnt += cur.rowcount
 
-                # ---------- UPDATES (same PK, changed cells) ---------------
+                # ---------- UPDATES ---------------------------------------
                 upd_cnt = 0
                 for pk_val in edited_pk_set & orig_pk_set:
                     row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
                     row_new = edited_df.loc[edited_df[pk_col] == pk_val].iloc[0]
 
                     for c in cols:
+                        if c in generated_cols:
+                            continue  # skip generated columns
                         if row_new[c] != row_old[c]:
                             cur.execute(
                                 f"UPDATE `{tbl}` SET `{c}`=%s "
@@ -158,24 +158,32 @@ def render_edit_page(get_connection, simple_rerun):
                             )
                             upd_cnt += cur.rowcount
 
-                # ---------- INSERTS (new PK or blank PK) -------------------
+                # ---------- INSERTS ---------------------------------------
                 ins_cnt = 0
+                insert_cols = [c for c in cols if c not in generated_cols]
+                placeholders = ", ".join("%s" for _ in insert_cols)
+                col_list = ", ".join(f"`{c}`" for c in insert_cols)
+
                 for _, row in edited_df.iterrows():
                     pk_val = row[pk_col]
-                    is_blank_pk = pk_val in (None, "", 0)
-                    if is_blank_pk or pk_val not in orig_pk_set:
-                        # skip completely blank placeholder rows
-                        if all(pd.isna(row[c]) or row[c] == "" for c in cols):
-                            continue
-                        placeholders = ", ".join("%s" for _ in cols)
-                        col_list     = ", ".join(f"`{c}`" for c in cols)
-                        cur.execute(
-                            f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
-                            tuple(_py(row[c]) for c in cols),
-                        )
-                        ins_cnt += cur.rowcount
+                    is_new = pk_val in (None, "", 0) or pk_val not in orig_pk_set
+                    if not is_new:
+                        continue
 
-                # ---------- COMMIT & FEEDBACK ------------------------------
+                    # Skip completely blank placeholder rows
+                    if all(
+                        (pd.isna(row[c]) or row[c] == "")
+                        for c in insert_cols
+                    ):
+                        continue
+
+                    cur.execute(
+                        f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
+                        tuple(_py(row[c]) for c in insert_cols),
+                    )
+                    ins_cnt += cur.rowcount
+
+                # ---------- COMMIT & FEEDBACK -----------------------------
                 if del_cnt or upd_cnt or ins_cnt:
                     conn.commit()
                     parts = []
@@ -211,9 +219,7 @@ def render_edit_page(get_connection, simple_rerun):
         )
 
         if st.button("Execute", key="exec_sql"):
-            stmts = [
-                s.strip() for s in re.split(r";\s*", sql_code) if s.strip()
-            ]
+            stmts = [s.strip() for s in re.split(r";\s*", sql_code) if s.strip()]
             if not stmts:
                 st.warning("Nothing to run."); return
 
