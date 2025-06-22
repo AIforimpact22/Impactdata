@@ -102,7 +102,7 @@ def render_edit_page(get_connection, simple_rerun):
             key="sheet_editor",
         )
 
-        # Convert every pd.NA → None once to avoid ambiguous truth values
+        # Ensure every pd.NA → None to avoid ambiguity later
         edited_df = edited_df.where(pd.notnull, None)
 
         # ------------------------------------------------------------------
@@ -112,17 +112,11 @@ def render_edit_page(get_connection, simple_rerun):
             try:
                 conn = get_connection(db); cur = conn.cursor()
 
-                # ---------- DELETES (rows present before, absent after) ----
-                diff_left = (
-                    orig_df.merge(
-                        edited_df,
-                        on=cols,
-                        how="left",
-                        indicator=True,
-                    )
-                    .query("_merge=='left_only'")
-                )
-                del_pks = diff_left[pk_col].dropna().tolist()
+                orig_pk_set = set(orig_df[pk_col].dropna())
+
+                # ---------- DELETES (PK present before, missing after) -----
+                edited_pk_set = set(edited_df[pk_col].dropna())
+                del_pks = orig_pk_set - edited_pk_set
                 del_cnt = 0
                 for pk_val in del_pks:
                     cur.execute(
@@ -131,17 +125,11 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     del_cnt += cur.rowcount
 
-                # ---------- UPDATES (cells changed) -----------------------
+                # ---------- UPDATES (same PK, changed cells) ---------------
                 upd_cnt = 0
-                for pk_val in edited_df[pk_col].dropna().unique():
-                    old_rows = orig_df.loc[orig_df[pk_col] == pk_val]
-                    new_rows = edited_df.loc[edited_df[pk_col] == pk_val]
-
-                    if old_rows.empty or new_rows.empty:
-                        continue  # safety guard
-
-                    row_old = old_rows.iloc[0]
-                    row_new = new_rows.iloc[0]
+                for pk_val in edited_pk_set & orig_pk_set:
+                    row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
+                    row_new = edited_df.loc[edited_df[pk_col] == pk_val].iloc[0]
 
                     for c in cols:
                         if row_new[c] != row_old[c]:
@@ -152,22 +140,25 @@ def render_edit_page(get_connection, simple_rerun):
                             )
                             upd_cnt += cur.rowcount
 
-                # ---------- INSERTS (rows with NULL / blank PK) -----------
-                insert_rows = edited_df[edited_df[pk_col].isna()]
+                # ---------- INSERTS (new PK or blank PK) -------------------
                 ins_cnt = 0
-                for _, row in insert_rows.iterrows():
-                    # Skip completely blank rows
-                    if all((pd.isna(row[c]) or row[c] == "") for c in cols):
-                        continue
-                    placeholders = ", ".join("%s" for _ in cols)
-                    col_list     = ", ".join(f"`{c}`" for c in cols)
-                    cur.execute(
-                        f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
-                        tuple(row[c] for c in cols),
-                    )
-                    ins_cnt += cur.rowcount
+                for _, row in edited_df.iterrows():
+                    pk_val = row[pk_col]
+                    # insert if PK is NULL / blank / 0 / ""  OR  not in original set
+                    is_blank_pk = pk_val in (None, "", 0)
+                    if is_blank_pk or pk_val not in orig_pk_set:
+                        # skip completely blank placeholder rows
+                        if all(pd.isna(row[c]) or row[c] == "" for c in cols):
+                            continue
+                        placeholders = ", ".join("%s" for _ in cols)
+                        col_list     = ", ".join(f"`{c}`" for c in cols)
+                        cur.execute(
+                            f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
+                            tuple(row[c] for c in cols),
+                        )
+                        ins_cnt += cur.rowcount
 
-                # ---------- COMMIT & FEEDBACK ----------------------------
+                # ---------- COMMIT & FEEDBACK ------------------------------
                 if del_cnt or upd_cnt or ins_cnt:
                     conn.commit()
                     parts = []
