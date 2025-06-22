@@ -18,6 +18,7 @@ from __future__ import annotations
 import re
 import streamlit as st
 import pandas as pd
+import numpy as np   # ← NEW
 
 EXCLUDED_SYS_DBS = (
     "information_schema",
@@ -25,6 +26,23 @@ EXCLUDED_SYS_DBS = (
     "performance_schema",
     "sys",
 )
+
+
+# --------------------------------------------------------------------------- #
+#  Utility: convert numpy / pandas scalars to pure Python                     #
+# --------------------------------------------------------------------------- #
+def _py(val):
+    """Return a DB-safe pure-Python value (no numpy scalars)."""
+    # Handle pandas / numpy NA
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return None
+    # numpy.generic covers int64, float64, bool_, etc.
+    if isinstance(val, np.generic):
+        return val.item()
+    # pandas Timestamp → Python datetime
+    if isinstance(val, pd.Timestamp):
+        return val.to_pydatetime()
+    return val
 
 
 # --------------------------------------------------------------------------- #
@@ -121,7 +139,7 @@ def render_edit_page(get_connection, simple_rerun):
                 for pk_val in del_pks:
                     cur.execute(
                         f"DELETE FROM `{tbl}` WHERE `{pk_col}`=%s",
-                        (pk_val,),
+                        (_py(pk_val),),
                     )
                     del_cnt += cur.rowcount
 
@@ -136,7 +154,7 @@ def render_edit_page(get_connection, simple_rerun):
                             cur.execute(
                                 f"UPDATE `{tbl}` SET `{c}`=%s "
                                 f"WHERE `{pk_col}`=%s",
-                                (row_new[c], pk_val),
+                                (_py(row_new[c]), _py(pk_val)),
                             )
                             upd_cnt += cur.rowcount
 
@@ -144,7 +162,6 @@ def render_edit_page(get_connection, simple_rerun):
                 ins_cnt = 0
                 for _, row in edited_df.iterrows():
                     pk_val = row[pk_col]
-                    # insert if PK is NULL / blank / 0 / ""  OR  not in original set
                     is_blank_pk = pk_val in (None, "", 0)
                     if is_blank_pk or pk_val not in orig_pk_set:
                         # skip completely blank placeholder rows
@@ -154,7 +171,7 @@ def render_edit_page(get_connection, simple_rerun):
                         col_list     = ", ".join(f"`{c}`" for c in cols)
                         cur.execute(
                             f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
-                            tuple(row[c] for c in cols),
+                            tuple(_py(row[c]) for c in cols),
                         )
                         ins_cnt += cur.rowcount
 
