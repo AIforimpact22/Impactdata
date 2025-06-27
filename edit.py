@@ -66,19 +66,21 @@ def render_edit_page(get_connection, simple_rerun):
         tbl   = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
 
+        # Pull rows & column metadata
         conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
 
         cur.execute(f"SHOW COLUMNS FROM `{tbl}`")
-        desc = cur.fetchall()
+        desc = cur.fetchall()   # Field, Type, Null, Key, Default, Extra
         generated_cols = {
             field for field, *_, extra in desc
             if "GENERATED" in extra.upper()
         }
         cur.close(); conn.close()
 
+        # Detect PK column
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute(f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'")
@@ -86,7 +88,7 @@ def render_edit_page(get_connection, simple_rerun):
         finally:
             cur.close(); conn.close()
 
-        pk_col_auto = pk_info[4] if pk_info else cols[0]
+        pk_col_auto = pk_info[4] if pk_info else cols[0]   # Column_name
         pk_col = st.selectbox(
             "Primary-key column",
             cols,
@@ -99,8 +101,9 @@ def render_edit_page(get_connection, simple_rerun):
             num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor",
-        ).where(pd.notnull, None)
+        ).where(pd.notnull, None)   # convert pd.NA → None
 
+        # Manual Delete Selector
         to_delete = st.multiselect(
             "Also delete rows with these PKs:",
             options=list(orig_df[pk_col]),
@@ -114,6 +117,7 @@ def render_edit_page(get_connection, simple_rerun):
                 orig_pk_set   = set(orig_df[pk_col].dropna())
                 edited_pk_set = set(edited_df[pk_col].dropna())
 
+                # Deletes
                 del_pks = (orig_pk_set - edited_pk_set) | set(to_delete)
                 del_cnt = 0
                 for pk_val in del_pks:
@@ -123,6 +127,7 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     del_cnt += cur.rowcount
 
+                # Updates
                 upd_cnt = 0
                 for pk_val in edited_pk_set & orig_pk_set:
                     row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
@@ -133,12 +138,12 @@ def render_edit_page(get_connection, simple_rerun):
                             continue
                         if row_new[c] != row_old[c]:
                             cur.execute(
-                                f"UPDATE `{tbl}` SET `{c}`=%s "
-                                f"WHERE `{pk_col}`=%s",
+                                f"UPDATE `{tbl}` SET `{c}`=%s WHERE `{pk_col}`=%s",
                                 (_py(row_new[c]), _py(pk_val)),
                             )
                             upd_cnt += cur.rowcount
 
+                # Inserts: only if both PK and fullname are set
                 ins_cnt = 0
                 insert_cols = [c for c in cols if c not in generated_cols]
                 placeholders = ", ".join("%s" for _ in insert_cols)
@@ -150,10 +155,8 @@ def render_edit_page(get_connection, simple_rerun):
                     if not is_new:
                         continue
 
-                    if all(
-                        (pd.isna(row[c]) or row[c] == "")
-                        for c in insert_cols
-                    ):
+                    # Skip rows missing username or fullname
+                    if row.get(pk_col) in (None, "") or row.get('fullname') in (None, ""):
                         continue
 
                     cur.execute(
@@ -162,6 +165,7 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     ins_cnt += cur.rowcount
 
+                # Commit & Feedback
                 if del_cnt or upd_cnt or ins_cnt:
                     conn.commit()
                     parts = []
@@ -180,7 +184,7 @@ def render_edit_page(get_connection, simple_rerun):
                 cur.close(); conn.close()
 
     # =====================================================================
-    # TAB 2 – Free SQL / DDL Editor (with schema loader)
+    # TAB 2 – Free SQL / DDL Editor
     # =====================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
