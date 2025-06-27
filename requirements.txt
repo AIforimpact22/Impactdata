@@ -1,2 +1,2 @@
 streamlit
-mysql-connector-python
+mysql-connector-python==8.4.0 
