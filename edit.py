@@ -102,6 +102,7 @@ def render_edit_page(get_connection, simple_rerun):
             orig_df,
             num_rows="dynamic",
             use_container_width=True,
+            row_deletable=True,
             key="sheet_editor",
         ).where(pd.notnull, None)   # convert pd.NA → None
 
