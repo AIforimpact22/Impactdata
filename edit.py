@@ -98,7 +98,8 @@ def render_edit_page(get_connection, simple_rerun):
 
         # DataFrames
         orig_df = pd.DataFrame(rows, columns=cols)
-        edited_df = st.data_editor(
+        # Use experimental_data_editor to enable row_deletable
+        edited_df = st.experimental_data_editor(
             orig_df,
             num_rows="dynamic",
             use_container_width=True,
