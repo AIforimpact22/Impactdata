@@ -1,18 +1,8 @@
 """
 edit.py – Spreadsheet-style editor + free-form SQL editor.
 
-Imported by app.py
-------------------
+Imported by app.py:
     from edit import render_edit_page
-
-Public API
-----------
-render_edit_page(get_connection, simple_rerun)
-
-Callbacks required
-------------------
-get_connection(db: str | None) -> mysql.connector connection
-simple_rerun()                  -> sets a flag then st.rerun()
 """
 from __future__ import annotations
 import re
@@ -27,9 +17,9 @@ EXCLUDED_SYS_DBS = (
     "sys",
 )
 
-# --------------------------------------------------------------------------- #
-#  Utility: convert numpy / pandas scalars to pure Python                     #
-# --------------------------------------------------------------------------- #
+# ─────────────────────────────────────────────────────────────────────────────
+# Utility: convert numpy / pandas scalars to plain-Python objects
+# ─────────────────────────────────────────────────────────────────────────────
 def _py(val):
     """Return a DB-safe pure-Python value (no numpy scalars)."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -41,15 +31,15 @@ def _py(val):
     return val
 
 
-# --------------------------------------------------------------------------- #
-#  Main entry                                                                  #
-# --------------------------------------------------------------------------- #
+# ─────────────────────────────────────────────────────────────────────────────
+# Main entry
+# ─────────────────────────────────────────────────────────────────────────────
 def render_edit_page(get_connection, simple_rerun):
     st.title("Edit Database")
 
-    # ───────────────────────────────────────────────────────────────────
+    # --------------------------------------------------------------------- #
     # 1 – Pick database
-    # ───────────────────────────────────────────────────────────────────
+    # --------------------------------------------------------------------- #
     try:
         conn = get_connection(); cur = conn.cursor()
         cur.execute("SHOW DATABASES")
@@ -58,17 +48,16 @@ def render_edit_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
     if not dbs:
-        st.info("No user-created databases."); return
+        st.info("No user-created databases.")
+        return
 
     db = st.selectbox("Database", dbs)
-
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
-    # ======================================================================
+    # =====================================================================
     # TAB 1 – Spreadsheet Editor
-    # ======================================================================
+    # =====================================================================
     with tab_sheet:
-        # 1-a. Pick table
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute("SHOW TABLES")
@@ -77,18 +66,19 @@ def render_edit_page(get_connection, simple_rerun):
             cur.close(); conn.close()
 
         if not tables:
-            st.info("No tables in this DB."); return
+            st.info("No tables in this DB.")
+            return
 
-        tbl = st.selectbox("Table", tables)
+        tbl   = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
 
-        # 1-b. Pull rows & column metadata
+        # ----- Pull rows & column metadata --------------------------------
         conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
 
-        # ALSO grab column extras to detect generated columns
+        # Detect generated columns
         cur.execute(f"SHOW COLUMNS FROM `{tbl}`")
         desc = cur.fetchall()   # Field, Type, Null, Key, Default, Extra
         generated_cols = {
@@ -97,7 +87,7 @@ def render_edit_page(get_connection, simple_rerun):
         }
         cur.close(); conn.close()
 
-        # 1-c. Detect PK column
+        # Detect PK column
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute(f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'")
@@ -112,7 +102,7 @@ def render_edit_page(get_connection, simple_rerun):
             index=cols.index(pk_col_auto),
         )
 
-        # 1-d. DataFrames
+        # DataFrames
         orig_df = pd.DataFrame(rows, columns=cols)
         edited_df = st.data_editor(
             orig_df,
@@ -122,7 +112,7 @@ def render_edit_page(get_connection, simple_rerun):
         ).where(pd.notnull, None)   # convert pd.NA → None
 
         # ------------------------------------------------------------------
-        # 1-e. SAVE
+        # SAVE
         # ------------------------------------------------------------------
         if st.button("Save Changes", key="save_btn"):
             try:
@@ -149,7 +139,7 @@ def render_edit_page(get_connection, simple_rerun):
 
                     for c in cols:
                         if c in generated_cols:
-                            continue  # skip generated columns
+                            continue
                         if row_new[c] != row_old[c]:
                             cur.execute(
                                 f"UPDATE `{tbl}` SET `{c}`=%s "
@@ -162,7 +152,7 @@ def render_edit_page(get_connection, simple_rerun):
                 ins_cnt = 0
                 insert_cols = [c for c in cols if c not in generated_cols]
                 placeholders = ", ".join("%s" for _ in insert_cols)
-                col_list = ", ".join(f"`{c}`" for c in insert_cols)
+                col_list     = ", ".join(f"`{c}`" for c in insert_cols)
 
                 for _, row in edited_df.iterrows():
                     pk_val = row[pk_col]
@@ -170,7 +160,7 @@ def render_edit_page(get_connection, simple_rerun):
                     if not is_new:
                         continue
 
-                    # Skip completely blank placeholder rows
+                    # Skip completely blank rows
                     if all(
                         (pd.isna(row[c]) or row[c] == "")
                         for c in insert_cols
@@ -201,47 +191,50 @@ def render_edit_page(get_connection, simple_rerun):
             finally:
                 cur.close(); conn.close()
 
-    # ======================================================================
+    # =====================================================================
     # TAB 2 – Free SQL / DDL Editor
-    # ======================================================================
+    # =====================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
 
         default_sql = (
             "-- Example:\n"
             "SELECT * FROM your_table LIMIT 10;\n\n"
-            "-- UPDATE your_table SET col = 'value' WHERE id = 1;"
+            "-- CREATE TRIGGER ... BEGIN ... END;"
         )
         sql_code = st.text_area(
             "SQL statements (semicolon-separated)",
             value=default_sql,
-            height=200,
+            height=220,
         )
 
         if st.button("Execute", key="exec_sql"):
-            stmts = [s.strip() for s in re.split(r";\s*", sql_code) if s.strip()]
-            if not stmts:
-                st.warning("Nothing to run."); return
+            # Strip client-side DELIMITER commands if present
+            cleaned_sql = "\n".join(
+                line for line in sql_code.splitlines()
+                if not line.strip().upper().startswith("DELIMITER")
+            )
 
             try:
                 conn = get_connection(db); cur = conn.cursor()
                 any_write = False
 
-                for idx, stmt in enumerate(stmts, 1):
-                    st.markdown(f"##### Statement {idx}")
-                    cur.execute(stmt)
-
-                    if cur.with_rows:  # SELECT
+                for idx, result in enumerate(
+                        cur.execute(cleaned_sql, multi=True), start=1):
+                    if result.with_rows:  # SELECT
+                        st.markdown(f"##### Result set {idx}")
                         st.dataframe(
                             pd.DataFrame(
-                                cur.fetchall(),
-                                columns=[d[0] for d in cur.description],
+                                result.fetchall(),
+                                columns=[d[0] for d in result.description],
                             ),
                             use_container_width=True,
                         )
-                    else:              # UPDATE / INSERT / DELETE
+                    else:                # UPDATE / INSERT / DDL
                         any_write = True
-                        st.success(f"{cur.rowcount} row(s) affected.")
+                        st.success(
+                            f"Statement {idx}: {result.rowcount} row(s) affected."
+                        )
 
                 if any_write:
                     conn.commit()
@@ -249,6 +242,7 @@ def render_edit_page(get_connection, simple_rerun):
                     simple_rerun()
 
             except Exception as e:
+                conn.rollback()
                 st.error(f"Execution failed: {e}")
             finally:
                 cur.close(); conn.close()
