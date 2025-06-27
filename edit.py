@@ -1,9 +1,3 @@
-"""
-edit.py – Spreadsheet-style editor + free-form SQL editor.
-
-Imported by app.py:
-    from edit import render_edit_page
-"""
 from __future__ import annotations
 import re
 import streamlit as st
@@ -82,7 +76,7 @@ def render_edit_page(get_connection, simple_rerun):
         cur.execute(f"SHOW COLUMNS FROM `{tbl}`")
         desc = cur.fetchall()   # Field, Type, Null, Key, Default, Extra
         generated_cols = {
-            field for field, *_ , extra in desc
+            field for field, *_, extra in desc
             if "GENERATED" in extra.upper()
         }
         cur.close(); conn.close()
@@ -209,7 +203,7 @@ def render_edit_page(get_connection, simple_rerun):
         )
 
         if st.button("Execute", key="exec_sql"):
-            # Strip client-side DELIMITER commands if present
+            # Remove any client-side DELIMITER commands
             cleaned_sql = "\n".join(
                 line for line in sql_code.splitlines()
                 if not line.strip().upper().startswith("DELIMITER")
@@ -218,7 +212,7 @@ def render_edit_page(get_connection, simple_rerun):
             try:
                 conn = get_connection(db); cur = conn.cursor()
                 any_write = False
-
+                # Execute entire block as multi-statement
                 for idx, result in enumerate(
                         cur.execute(cleaned_sql, multi=True), start=1):
                     if result.with_rows:  # SELECT
