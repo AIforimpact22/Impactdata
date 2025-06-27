@@ -17,8 +17,8 @@ import streamlit as st
 import mysql.connector
 import pandas as pd
 
-# ── ACCESS GATE ──────────────────────────────────────────────────────────────
-ACCESS_CODE = "meer"  # 🔐 change this!
+# ── ACCESS GATE ─────────────────────────
+ACCESS_CODE = "meer"  # 🔒 change this!
 
 if "access_granted" not in st.session_state:
     st.session_state.access_granted = False
@@ -31,7 +31,7 @@ if not st.session_state.access_granted:
         st.rerun()
     st.stop()
 
-# ── DB CONFIG ────────────────────────────────────────────────────────────────
+# ── DB CONFIG ──────────────────────
 DB_CONFIG = {
     "host": "188.36.44.146",
     "port": 8081,
@@ -45,12 +45,13 @@ def get_connection(db: str | None = None):
         cfg["database"] = db
     return mysql.connector.connect(**cfg)
 
-# ── MISC HELPER ──────────────────────────────────────────────────────────────
+# ── MISC HELPER ──────────────────
+
 def _simple_rerun():
     st.session_state["_reload"] = True
     st.rerun()
 
-# ── SIDEBAR NAV ──────────────────────────────────────────────────────────────
+# ── SIDEBAR NAV ─────────────────
 PAGES = [
     "Provision Database",
     "Database Browser",
@@ -68,7 +69,8 @@ for name in PAGES:
     if st.sidebar.button(name):
         st.session_state.page = name
 
-# ── PAGE: PROVISION ──────────────────────────────────────────────────────────
+# ── PAGE: PROVISION ──────────────────
+
 def page_provision():
     st.title("Provision New MySQL Database (+Tables)")
     with st.form("create_db_form"):
@@ -87,39 +89,33 @@ def page_provision():
 
     try:
         conn = get_connection(); cur = conn.cursor()
-        # 1) CREATE DATABASE
         cur.execute(
             f"CREATE DATABASE `{db_name}` "
             "DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
         )
         conn.database = db_name
 
-        # 2) Remove DELIMITER lines
         sql = "\n".join(
             line for line in tables_sql.splitlines()
             if not line.strip().upper().startswith("DELIMITER")
         )
 
-        # 3) Extract CREATE TRIGGER ... END blocks
         trigger_blocks = re.findall(
             r"(CREATE\s+TRIGGER[\s\S]+?END)", sql, flags=re.IGNORECASE
         )
 
-        # 4) Remove trigger blocks from the main SQL so we can run tables first
         for tb in trigger_blocks:
             sql = sql.replace(tb, "")
 
-        # 5) Run all non-trigger statements (split on semicolons)
         stmts = [s.strip() for s in sql.split(";") if s.strip()]
         for stmt in stmts:
             cur.execute(stmt)
 
-        # 6) Finally, run each trigger block
         for tb in trigger_blocks:
             cur.execute(tb)
 
         conn.commit()
-        st.success(f"🎉 `{db_name}` and tables/triggers created!")
+        st.success(f"\ud83c\udf89 `{db_name}` and tables/triggers created!")
 
         st.markdown("### Quick connect")
         st.code(
@@ -132,7 +128,8 @@ def page_provision():
     finally:
         cur.close(); conn.close()
 
-# ── PAGE: BROWSER ────────────────────────────────────────────────────────────
+# ── PAGE: BROWSER ───────────────────
+
 def page_browser():
     st.title("Database Browser")
     try:
@@ -158,8 +155,9 @@ def page_browser():
         st.info("No tables."); return
 
     for t in tables:
-        col1, col2 = st.columns([2, 1])
+        col1, col2, col3 = st.columns([2, 1, 1])
         col1.write(f"**{t}**")
+        # preview rows
         if col2.button("Preview 20 rows", key=f"prev_{db}_{t}"):
             try:
                 conn = get_connection(db); cur = conn.cursor()
@@ -171,14 +169,25 @@ def page_browser():
                 st.error(e)
             finally:
                 cur.close(); conn.close()
+        # show DDL
+        if col3.button("Show DDL", key=f"ddl_{db}_{t}"):
+            try:
+                conn = get_connection(db); cur = conn.cursor()
+                cur.execute(f"SHOW CREATE TABLE `{t}`")
+                ddl = cur.fetchone()[1]
+                st.code(ddl, language="sql")
+            except Exception as e:
+                st.error(e)
+            finally:
+                cur.close(); conn.close()
 
-# ── IMPORT DELEGATED PAGES ──────────────────────────────────────────────────
+# ── IMPORT DELEGATED PAGES ─────────
 from edit import render_edit_page
 from add import render_add_page
 from connection import render_connection_page
 from delete import render_delete_page
 
-# ── ROUTER ───────────────────────────────────────────────────────────────────
+# ── ROUTER ───────────────
 match st.session_state.page:
     case "Provision Database": page_provision()
     case "Database Browser":   page_browser()
