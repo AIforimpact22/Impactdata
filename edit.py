@@ -98,14 +98,20 @@ def render_edit_page(get_connection, simple_rerun):
 
         # DataFrames
         orig_df = pd.DataFrame(rows, columns=cols)
-        # Use experimental_data_editor to enable row_deletable
-        edited_df = st.experimental_data_editor(
+        edited_df = st.data_editor(
             orig_df,
             num_rows="dynamic",
             use_container_width=True,
-            row_deletable=True,
             key="sheet_editor",
         ).where(pd.notnull, None)   # convert pd.NA → None
+
+        # ── Manual Delete Selector ────────────────────────────────────
+        # Let the user explicitly mark rows for deletion by PK
+        to_delete = st.multiselect(
+            "Also delete rows with these PKs:",
+            options=list(orig_df[pk_col]),
+            format_func=lambda v: f"{v}",
+        )
 
         # ------------------------------------------------------------------
         # SAVE
@@ -114,11 +120,12 @@ def render_edit_page(get_connection, simple_rerun):
             try:
                 conn = get_connection(db); cur = conn.cursor()
 
-                orig_pk_set = set(orig_df[pk_col].dropna())
+                orig_pk_set   = set(orig_df[pk_col].dropna())
+                edited_pk_set = set(edited_df[pk_col].dropna())
 
                 # ---------- DELETES ---------------------------------------
-                edited_pk_set = set(edited_df[pk_col].dropna())
-                del_pks = orig_pk_set - edited_pk_set
+                # Rows removed from the editor _or_ manually selected
+                del_pks = (orig_pk_set - edited_pk_set) | set(to_delete)
                 del_cnt = 0
                 for pk_val in del_pks:
                     cur.execute(
