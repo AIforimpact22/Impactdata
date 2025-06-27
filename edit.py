@@ -42,7 +42,8 @@ def render_edit_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
     if not dbs:
-        st.info("No user-created databases."); return
+        st.info("No user-created databases.")
+        return
 
     db = st.selectbox("Database", dbs)
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
@@ -59,27 +60,25 @@ def render_edit_page(get_connection, simple_rerun):
             cur.close(); conn.close()
 
         if not tables:
-            st.info("No tables in this DB."); return
+            st.info("No tables in this DB.")
+            return
 
         tbl   = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
 
-        # ----- Pull rows & column metadata --------------------------------
         conn = get_connection(db); cur = conn.cursor()
         cur.execute(f"SELECT * FROM `{tbl}` LIMIT {limit}")
         cols = [d[0] for d in cur.description]
         rows = cur.fetchall()
 
-        # Detect generated columns
         cur.execute(f"SHOW COLUMNS FROM `{tbl}`")
-        desc = cur.fetchall()   # Field, Type, Null, Key, Default, Extra
+        desc = cur.fetchall()
         generated_cols = {
             field for field, *_, extra in desc
             if "GENERATED" in extra.upper()
         }
         cur.close(); conn.close()
 
-        # Detect PK column
         try:
             conn = get_connection(db); cur = conn.cursor()
             cur.execute(f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'")
@@ -87,33 +86,27 @@ def render_edit_page(get_connection, simple_rerun):
         finally:
             cur.close(); conn.close()
 
-        pk_col_auto = pk_info[4] if pk_info else cols[0]   # Column_name
+        pk_col_auto = pk_info[4] if pk_info else cols[0]
         pk_col = st.selectbox(
             "Primary-key column",
             cols,
             index=cols.index(pk_col_auto),
         )
 
-        # DataFrames
         orig_df = pd.DataFrame(rows, columns=cols)
         edited_df = st.data_editor(
             orig_df,
             num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor",
-        ).where(pd.notnull, None)   # convert pd.NA → None
+        ).where(pd.notnull, None)
 
-        # ── Manual Delete Selector ────────────────────────────────────
-        # Let the user explicitly mark rows for deletion by PK
         to_delete = st.multiselect(
             "Also delete rows with these PKs:",
             options=list(orig_df[pk_col]),
             format_func=lambda v: f"{v}",
         )
 
-        # ------------------------------------------------------------------
-        # SAVE
-        # ------------------------------------------------------------------
         if st.button("Save Changes", key="save_btn"):
             try:
                 conn = get_connection(db); cur = conn.cursor()
@@ -121,8 +114,6 @@ def render_edit_page(get_connection, simple_rerun):
                 orig_pk_set   = set(orig_df[pk_col].dropna())
                 edited_pk_set = set(edited_df[pk_col].dropna())
 
-                # ---------- DELETES ---------------------------------------
-                # Rows removed from the editor _or_ manually selected
                 del_pks = (orig_pk_set - edited_pk_set) | set(to_delete)
                 del_cnt = 0
                 for pk_val in del_pks:
@@ -132,7 +123,6 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     del_cnt += cur.rowcount
 
-                # ---------- UPDATES ---------------------------------------
                 upd_cnt = 0
                 for pk_val in edited_pk_set & orig_pk_set:
                     row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
@@ -149,7 +139,6 @@ def render_edit_page(get_connection, simple_rerun):
                             )
                             upd_cnt += cur.rowcount
 
-                # ---------- INSERTS ---------------------------------------
                 ins_cnt = 0
                 insert_cols = [c for c in cols if c not in generated_cols]
                 placeholders = ", ".join("%s" for _ in insert_cols)
@@ -161,7 +150,6 @@ def render_edit_page(get_connection, simple_rerun):
                     if not is_new:
                         continue
 
-                    # Skip completely blank rows
                     if all(
                         (pd.isna(row[c]) or row[c] == "")
                         for c in insert_cols
@@ -174,7 +162,6 @@ def render_edit_page(get_connection, simple_rerun):
                     )
                     ins_cnt += cur.rowcount
 
-                # ---------- COMMIT & FEEDBACK -----------------------------
                 if del_cnt or upd_cnt or ins_cnt:
                     conn.commit()
                     parts = []
@@ -193,45 +180,49 @@ def render_edit_page(get_connection, simple_rerun):
                 cur.close(); conn.close()
 
     # =====================================================================
-    # TAB 2 – Free SQL / DDL Editor with Trigger Loader
+    # TAB 2 – Free SQL / DDL Editor (with schema loader)
     # =====================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
 
-        # -- Button to load existing triggers into the editor
-        if st.button("Load Triggers SQL", key="load_triggers"):
-            try:
-                conn = get_connection(db)
-                # use a dict cursor to get column names
-                cur = conn.cursor(dictionary=True)
-                cur.execute("SHOW TRIGGERS")
-                triggers = cur.fetchall()
-                sql_blocks = []
-                for t in triggers:
-                    name = t['Trigger']
-                    cur.execute(f"SHOW CREATE TRIGGER `{name}`")
-                    row = cur.fetchone()
-                    # MySQL returns 'SQL Original Statement' or 'Create Trigger'
-                    create_sql = row.get('SQL Original Statement') or row.get('Create Trigger')
-                    # Append trailing semicolon
-                    sql_blocks.append(create_sql.strip() + ';')
-                st.session_state['sql_code'] = "\n\n".join(sql_blocks)
-            except Exception as e:
-                st.error(f"Could not load triggers: {e}")
-            finally:
-                cur.close(); conn.close()
-
-        # Text area shows loaded or default SQL
         default_sql = (
             "-- Example:\n"
             "SELECT * FROM your_table LIMIT 10;\n\n"
-            "-- Or click 'Load Triggers SQL' to fetch existing triggers."
+            "-- Or load your current schema with the button below."
         )
+
+        # Button to load full schema
+        if st.button("Load current schema", key="load_schema"):
+            schema_statements = []
+            conn = get_connection(db); cur = conn.cursor()
+
+            # Tables
+            cur.execute("SHOW TABLES")
+            tables = [t[0] for t in cur.fetchall()]
+            for tbl in tables:
+                cur.execute(f"SHOW CREATE TABLE `{tbl}`")
+                row = cur.fetchone()
+                create_sql = row[1]
+                schema_statements.append(f"{create_sql};\n\n")
+
+            # Triggers
+            cur.execute("SHOW TRIGGERS")
+            triggers = [r[0] for r in cur.fetchall()]
+            for trg in triggers:
+                cur.execute(f"SHOW CREATE TRIGGER `{trg}`")
+                row = cur.fetchone()
+                create_sql = row[2]
+                schema_statements.append(f"{create_sql};\n\n")
+
+            cur.close(); conn.close()
+            st.session_state.schema_sql = "".join(schema_statements)
+
+        # Editable SQL area
         sql_code = st.text_area(
             "SQL statements (semicolon-separated)",
-            value=st.session_state.get('sql_code', default_sql),
-            key="sql_code",
-            height=220,
+            value=st.session_state.get("schema_sql", default_sql),
+            height=400,
+            key="schema_sql_area",
         )
 
         if st.button("Execute", key="exec_sql"):
@@ -239,9 +230,11 @@ def render_edit_page(get_connection, simple_rerun):
                 line for line in sql_code.splitlines()
                 if not line.strip().upper().startswith("DELIMITER")
             )
+
             try:
                 conn = get_connection(db); cur = conn.cursor()
                 any_write = False
+
                 for idx, result in enumerate(
                         cur.execute(cleaned_sql, multi=True), start=1):
                     if result.with_rows:
