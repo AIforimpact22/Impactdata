@@ -42,8 +42,7 @@ def render_edit_page(get_connection, simple_rerun):
         cur.close(); conn.close()
 
     if not dbs:
-        st.info("No user-created databases.")
-        return
+        st.info("No user-created databases."); return
 
     db = st.selectbox("Database", dbs)
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
@@ -60,8 +59,7 @@ def render_edit_page(get_connection, simple_rerun):
             cur.close(); conn.close()
 
         if not tables:
-            st.info("No tables in this DB.")
-            return
+            st.info("No tables in this DB."); return
 
         tbl   = st.selectbox("Table", tables)
         limit = st.number_input("Rows to load", 1, 500, 20)
@@ -195,36 +193,58 @@ def render_edit_page(get_connection, simple_rerun):
                 cur.close(); conn.close()
 
     # =====================================================================
-    # TAB 2 – Free SQL / DDL Editor
+    # TAB 2 – Free SQL / DDL Editor with Trigger Loader
     # =====================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
 
+        # -- Button to load existing triggers into the editor
+        if st.button("Load Triggers SQL", key="load_triggers"):
+            try:
+                conn = get_connection(db)
+                # use a dict cursor to get column names
+                cur = conn.cursor(dictionary=True)
+                cur.execute("SHOW TRIGGERS")
+                triggers = cur.fetchall()
+                sql_blocks = []
+                for t in triggers:
+                    name = t['Trigger']
+                    cur.execute(f"SHOW CREATE TRIGGER `{name}`")
+                    row = cur.fetchone()
+                    # MySQL returns 'SQL Original Statement' or 'Create Trigger'
+                    create_sql = row.get('SQL Original Statement') or row.get('Create Trigger')
+                    # Append trailing semicolon
+                    sql_blocks.append(create_sql.strip() + ';')
+                st.session_state['sql_code'] = "\n\n".join(sql_blocks)
+            except Exception as e:
+                st.error(f"Could not load triggers: {e}")
+            finally:
+                cur.close(); conn.close()
+
+        # Text area shows loaded or default SQL
         default_sql = (
             "-- Example:\n"
             "SELECT * FROM your_table LIMIT 10;\n\n"
-            "-- CREATE TRIGGER ... BEGIN ... END;"
+            "-- Or click 'Load Triggers SQL' to fetch existing triggers."
         )
         sql_code = st.text_area(
             "SQL statements (semicolon-separated)",
-            value=default_sql,
+            value=st.session_state.get('sql_code', default_sql),
+            key="sql_code",
             height=220,
         )
 
         if st.button("Execute", key="exec_sql"):
-            # Remove any client-side DELIMITER commands
             cleaned_sql = "\n".join(
                 line for line in sql_code.splitlines()
                 if not line.strip().upper().startswith("DELIMITER")
             )
-
             try:
                 conn = get_connection(db); cur = conn.cursor()
                 any_write = False
-                # Execute entire block as multi-statement
                 for idx, result in enumerate(
                         cur.execute(cleaned_sql, multi=True), start=1):
-                    if result.with_rows:  # SELECT
+                    if result.with_rows:
                         st.markdown(f"##### Result set {idx}")
                         st.dataframe(
                             pd.DataFrame(
@@ -233,7 +253,7 @@ def render_edit_page(get_connection, simple_rerun):
                             ),
                             use_container_width=True,
                         )
-                    else:                # UPDATE / INSERT / DDL
+                    else:
                         any_write = True
                         st.success(
                             f"Statement {idx}: {result.rowcount} row(s) affected."
