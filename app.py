@@ -1,3 +1,4 @@
+# app.py
 """
 Streamlit entry-point.
 
@@ -132,7 +133,7 @@ def page_provision():
     finally:
         cur.close(); conn.close()
 
-# ── PAGE: BROWSER ────────────────────────────────────────────────────────────
+# ── PAGE: BROWSER ───────────────────────────────────────────────────────────
 def page_browser():
     st.title("Database Browser")
     try:
@@ -160,13 +161,15 @@ def page_browser():
     for t in tables:
         col1, col2 = st.columns([2, 1])
         col1.write(f"**{t}**")
-        if col2.button("Preview 20 rows", key=f"prev_{db}_{t}"):
+        if col2.button("Preview all rows", key=f"prev_{db}_{t}"):
             try:
                 conn = get_connection(db); cur = conn.cursor()
-                cur.execute(f"SELECT * FROM {t} LIMIT 20")
+                cur.execute(f"SELECT * FROM `{t}`")
                 cols = [d[0] for d in cur.description]
-                st.dataframe(pd.DataFrame(cur.fetchall(), columns=cols),
-                             use_container_width=True)
+                st.dataframe(
+                    pd.DataFrame(cur.fetchall(), columns=cols),
+                    use_container_width=True
+                )
             except Exception as e:
                 st.error(e)
             finally:
@@ -178,7 +181,7 @@ from add import render_add_page
 from connection import render_connection_page
 from delete import render_delete_page
 
-# ── ROUTER ───────────────────────────────────────────────────────────────────
+# ── ROUTER ─────────────────────────────────────────────────────────────────
 match st.session_state.page:
     case "Provision Database": page_provision()
     case "Database Browser":   page_browser()
