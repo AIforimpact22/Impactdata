@@ -1,4 +1,3 @@
-# edit.py
 from __future__ import annotations
 import re
 import streamlit as st
@@ -12,6 +11,9 @@ EXCLUDED_SYS_DBS = (
     "sys",
 )
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Utility: convert numpy / pandas scalars to plain-Python objects
+# ─────────────────────────────────────────────────────────────────────────────
 def _py(val):
     """Return a DB-safe pure-Python value (no numpy scalars)."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
@@ -22,10 +24,15 @@ def _py(val):
         return val.to_pydatetime()
     return val
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Main entry
+# ─────────────────────────────────────────────────────────────────────────────
 def render_edit_page(get_connection, simple_rerun):
     st.title("Edit Database")
 
+    # --------------------------------------------------------------------- #
     # 1 – Pick database
+    # --------------------------------------------------------------------- #
     try:
         conn = get_connection(); cur = conn.cursor()
         cur.execute("SHOW DATABASES")
@@ -40,7 +47,9 @@ def render_edit_page(get_connection, simple_rerun):
     db = st.selectbox("Database", dbs)
     tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
+    # =====================================================================
     # TAB 1 – Spreadsheet Editor
+    # =====================================================================
     with tab_sheet:
         try:
             conn = get_connection(db); cur = conn.cursor()
@@ -90,8 +99,9 @@ def render_edit_page(get_connection, simple_rerun):
             num_rows="dynamic",
             use_container_width=True,
             key="sheet_editor",
-        ).where(pd.notnull, None)
+        ).where(pd.notnull, None)   # convert pd.NA → None
 
+        # Manual Delete Selector
         to_delete = st.multiselect(
             "Also delete rows with these PKs:",
             options=list(orig_df[pk_col]),
@@ -102,7 +112,7 @@ def render_edit_page(get_connection, simple_rerun):
             try:
                 conn = get_connection(db); cur = conn.cursor()
 
-                orig_pk_set = set(orig_df[pk_col].dropna())
+                orig_pk_set   = set(orig_df[pk_col].dropna())
                 edited_pk_set = set(edited_df[pk_col].dropna())
 
                 # Deletes
@@ -120,6 +130,7 @@ def render_edit_page(get_connection, simple_rerun):
                 for pk_val in edited_pk_set & orig_pk_set:
                     row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
                     row_new = edited_df.loc[edited_df[pk_col] == pk_val].iloc[0]
+
                     for c in cols:
                         if c in generated_cols:
                             continue
@@ -130,19 +141,22 @@ def render_edit_page(get_connection, simple_rerun):
                             )
                             upd_cnt += cur.rowcount
 
-                # Inserts
+                # Inserts: only if both PK and fullname are set
                 ins_cnt = 0
                 insert_cols = [c for c in cols if c not in generated_cols]
                 placeholders = ", ".join("%s" for _ in insert_cols)
-                col_list = ", ".join(f"`{c}`" for c in insert_cols)
+                col_list     = ", ".join(f"`{c}`" for c in insert_cols)
 
                 for _, row in edited_df.iterrows():
                     pk_val = row[pk_col]
                     is_new = pk_val in (None, "", 0) or pk_val not in orig_pk_set
                     if not is_new:
                         continue
+
+                    # Skip rows missing username or fullname
                     if row.get(pk_col) in (None, "") or row.get('fullname') in (None, ""):
                         continue
+
                     cur.execute(
                         f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
                         tuple(_py(row[c]) for c in insert_cols),
@@ -167,7 +181,9 @@ def render_edit_page(get_connection, simple_rerun):
             finally:
                 cur.close(); conn.close()
 
+    # =====================================================================
     # TAB 2 – Free SQL / DDL Editor
+    # =====================================================================
     with tab_sql:
         st.subheader(f"Run custom SQL against `{db}`")
 
@@ -177,27 +193,33 @@ def render_edit_page(get_connection, simple_rerun):
             "-- Or load your current schema with the button below."
         )
 
+        # Button to load full schema
         if st.button("Load current schema", key="load_schema"):
             schema_statements = []
             conn = get_connection(db); cur = conn.cursor()
 
+            # Tables
             cur.execute("SHOW TABLES")
             tables = [t[0] for t in cur.fetchall()]
             for tbl in tables:
                 cur.execute(f"SHOW CREATE TABLE `{tbl}`")
                 row = cur.fetchone()
-                schema_statements.append(f"{row[1]};\n\n")
+                create_sql = row[1]
+                schema_statements.append(f"{create_sql};\n\n")
 
+            # Triggers
             cur.execute("SHOW TRIGGERS")
             triggers = [r[0] for r in cur.fetchall()]
             for trg in triggers:
                 cur.execute(f"SHOW CREATE TRIGGER `{trg}`")
                 row = cur.fetchone()
-                schema_statements.append(f"{row[2]};\n\n")
+                create_sql = row[2]
+                schema_statements.append(f"{create_sql};\n\n")
 
             cur.close(); conn.close()
             st.session_state.schema_sql = "".join(schema_statements)
 
+        # Editable SQL area
         sql_code = st.text_area(
             "SQL statements (semicolon-separated)",
             value=st.session_state.get("schema_sql", default_sql),
@@ -210,6 +232,7 @@ def render_edit_page(get_connection, simple_rerun):
                 line for line in sql_code.splitlines()
                 if not line.strip().upper().startswith("DELIMITER")
             )
+
             try:
                 conn = get_connection(db); cur = conn.cursor()
                 any_write = False
