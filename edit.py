@@ -1,28 +1,21 @@
-# edit_db_page.py  ────────────────────────────────────────────────────────────
 from __future__ import annotations
-
 import re
-from typing import Dict, List, Sequence, Tuple, Any
-
-import numpy as np
+import streamlit as st
 import pandas as pd
-import sqlparse          # pip install sqlparse
-import streamlit as st    # pip install streamlit>=1.35
+import numpy as np
 
-# ---------------------------------------------------------------------------#
-# Configuration
-# ---------------------------------------------------------------------------#
-EXCLUDED_SYS_DBS = ("information_schema", "mysql",
-                    "performance_schema", "sys")
-MAX_PREVIEW_ROWS = 1_000          # hard-limit shown in the editor
-SHOW_SQL_IN_SUCCESS_TOAST = True  # turn off if noise
+EXCLUDED_SYS_DBS = (
+    "information_schema",
+    "mysql",
+    "performance_schema",
+    "sys",
+)
 
-
-# ---------------------------------------------------------------------------#
-# Utility helpers
-# ---------------------------------------------------------------------------#
-def _py(val: Any) -> Any:
-    """Convert DB/NumPy/pandas scalars to pure Python types (for MySQLdb)."""
+# ─────────────────────────────────────────────────────────────────────────────
+# Utility: convert numpy / pandas scalars to plain-Python objects
+# ─────────────────────────────────────────────────────────────────────────────
+def _py(val):
+    """Return a DB-safe pure-Python value (no numpy scalars)."""
     if val is None or (isinstance(val, float) and pd.isna(val)):
         return None
     if isinstance(val, np.generic):
@@ -31,281 +24,243 @@ def _py(val: Any) -> Any:
         return val.to_pydatetime()
     return val
 
-
-def _get_primary_keys(cur, table: str) -> Tuple[str, ...]:
-    """Return tuple of primary-key column names for *table*."""
-    cur.execute("SHOW KEYS FROM `{}` WHERE Key_name='PRIMARY'".format(table))
-    return tuple(row[4] for row in cur.fetchall())  # column_name is index 4
-
-
-def _upsert_row(cur, db: str, table: str,
-                pk_cols: Sequence[str],
-                old_row: Dict[str, Any] | None,
-                new_row: Dict[str, Any]) -> None:
-    """
-    INSERT a new row or UPDATE an existing one.
-
-    * If *old_row* is None → INSERT (ignore duplicates).
-    * Else → UPDATE only the modified columns.
-    """
-    cols = list(new_row.keys())
-    placeholders = ", ".join(["%s"] * len(cols))
-    set_clause = ", ".join("`{0}`=%s".format(c) for c in cols)
-
-    if old_row is None:  # INSERT
-        sql = "INSERT INTO `{0}`.`{1}` ({2}) VALUES ({3})".format(
-            db, table, ", ".join(f"`{c}`" for c in cols), placeholders
-        )
-        cur.execute(sql, tuple(_py(new_row[c]) for c in cols))
-    else:                # UPDATE
-        diff_cols = [c for c in cols if old_row.get(c) != new_row.get(c)]
-        if not diff_cols:
-            return  # nothing changed
-        set_clause = ", ".join("`{0}`=%s".format(c) for c in diff_cols)
-        where_clause = " AND ".join("`{0}`=%s".format(c) for c in pk_cols)
-        sql = ("UPDATE `{0}`.`{1}` SET {2} WHERE {3}"
-               .format(db, table, set_clause, where_clause))
-        cur.execute(
-            sql,
-            tuple(_py(new_row[c]) for c in diff_cols) +
-            tuple(_py(old_row[c]) for c in pk_cols)
-        )
-
-
-def _detect_changes(orig_df: pd.DataFrame,
-                    edited_df: pd.DataFrame,
-                    pk_cols: Sequence[str]) -> Tuple[
-                        List[Tuple[Dict[str, Any] | None, Dict[str, Any]]],
-                        List[Dict[str, Any]]
-                    ]:
-    """
-    Compare *orig_df* vs *edited_df*.
-
-    Returns (rows_to_upsert, errors) where:
-
-    * rows_to_upsert = list of (old_row_dict | None, new_row_dict)
-      – old_row_dict is None for new INSERTs.
-    * errors = list of human-readable problems (duplicate PK etc.)
-    """
-    rows: Dict[Tuple[Any, ...], Dict[str, Any]] = {
-        tuple(orig_df.loc[i, pk_cols]): orig_df.loc[i].to_dict()
-        for i in orig_df.index
-    }
-    to_upsert: List[Tuple[Dict[str, Any] | None, Dict[str, Any]]] = []
-    errors: List[Dict[str, Any]] = []
-
-    for _, row in edited_df.iterrows():
-        pk_vals = tuple(row[c] for c in pk_cols)
-        new_row = row.to_dict()
-        if any(pd.isna(v) for v in pk_vals):
-            errors.append(
-                {"row": new_row, "err": "Primary-key value missing (NULL)"}
-            )
-            continue
-        old_row = rows.get(pk_vals)
-        to_upsert.append((old_row, new_row))
-    return to_upsert, errors
-
-
-# ---------------------------------------------------------------------------#
-# Main Streamlit page
-# ---------------------------------------------------------------------------#
+# ─────────────────────────────────────────────────────────────────────────────
+# Main entry
+# ─────────────────────────────────────────────────────────────────────────────
 def render_edit_page(get_connection, simple_rerun):
-    st.title("📝 Edit Database")
+    st.title("Edit Database")
 
-    # ------------------------------------------------------------------#
-    # Database picker
-    # ------------------------------------------------------------------#
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SHOW DATABASES")
-    dbs = [d[0] for d in cur.fetchall() if d[0] not in EXCLUDED_SYS_DBS]
-    cur.close()
-    conn.close()
+    # --------------------------------------------------------------------- #
+    # 1 – Pick database
+    # --------------------------------------------------------------------- #
+    try:
+        conn = get_connection(); cur = conn.cursor()
+        cur.execute("SHOW DATABASES")
+        dbs = [d[0] for d in cur.fetchall() if d[0] not in EXCLUDED_SYS_DBS]
+    finally:
+        cur.close(); conn.close()
 
     if not dbs:
-        st.info("No user-created databases found.")
+        st.info("No user-created databases.")
         return
 
     db = st.selectbox("Database", dbs)
-    tab_sheet, tab_sql, tab_new = st.tabs(
-        ["Spreadsheet Editor", "SQL Editor", "New Table"]
-    )
+    tab_sheet, tab_sql = st.tabs(["Spreadsheet Editor", "SQL Editor"])
 
-    # ================================================================
-    # TAB 1  Spreadsheet Editor
-    # ================================================================
+    # =====================================================================
+    # TAB 1 – Spreadsheet Editor
+    # =====================================================================
     with tab_sheet:
-        st.subheader(f"Spreadsheet view – `{db}`")
-
-        # -------- table picker --------
-        conn = get_connection(db)
-        cur = conn.cursor()
-        cur.execute("SHOW TABLES")
-        tables = [t[0] for t in cur.fetchall()]
-        cur.close()
-        conn.close()
+        try:
+            conn = get_connection(db); cur = conn.cursor()
+            cur.execute("SHOW TABLES")
+            tables = [t[0] for t in cur.fetchall()]
+        finally:
+            cur.close(); conn.close()
 
         if not tables:
-            st.info(f"No tables in **{db}** yet. Create one ➜ _New Table_ tab.")
-            st.stop()
+            st.info("No tables in this DB.")
+            return
 
-        table = st.selectbox("Table", tables, key="tbl_picker")
+        tbl = st.selectbox("Table", tables)
 
-        # -------- load data --------
-        @st.cache_data(show_spinner=False)
-        def _load_table(db: str, table: str) -> pd.DataFrame:
-            conn = get_connection(db)
-            df = pd.read_sql(
-                f"SELECT * FROM `{table}` LIMIT {MAX_PREVIEW_ROWS}", conn
-            )
-            conn.close()
-            return df
+        # Pull rows & column metadata (no LIMIT → fetches all rows)
+        conn = get_connection(db); cur = conn.cursor()
+        cur.execute(f"SELECT * FROM `{tbl}`")
+        cols = [d[0] for d in cur.description]
+        rows = cur.fetchall()
 
-        df_orig = _load_table(db, table)
+        cur.execute(f"SHOW COLUMNS FROM `{tbl}`")
+        desc = cur.fetchall()   # Field, Type, Null, Key, Default, Extra
+        generated_cols = {
+            field for field, *_, extra in desc
+            if "GENERATED" in extra.upper()
+        }
+        cur.close(); conn.close()
 
-        if df_orig.empty:
-            st.warning("Table is empty – add rows below ⬇")
-        else:
-            st.caption(f"Showing ≤ {MAX_PREVIEW_ROWS} rows")
+        # Detect PK column
+        try:
+            conn = get_connection(db); cur = conn.cursor()
+            cur.execute(f"SHOW KEYS FROM `{tbl}` WHERE Key_name='PRIMARY'")
+            pk_info = cur.fetchone()
+        finally:
+            cur.close(); conn.close()
 
-        # -------- editable dataframe --------
-        df_edit = st.data_editor(
-            df_orig,
-            use_container_width=True,
+        pk_col_auto = pk_info[4] if pk_info else cols[0]
+        pk_col = st.selectbox(
+            "Primary-key column",
+            cols,
+            index=cols.index(pk_col_auto),
+        )
+
+        orig_df = pd.DataFrame(rows, columns=cols)
+        edited_df = st.data_editor(
+            orig_df,
             num_rows="dynamic",
-            key=f"editor_{db}_{table}",
+            use_container_width=True,
+            key="sheet_editor",
+        ).where(pd.notnull, None)   # convert pd.NA → None
+
+        # Manual Delete Selector
+        to_delete = st.multiselect(
+            "Also delete rows with these PKs:",
+            options=list(orig_df[pk_col]),
+            format_func=lambda v: f"{v}",
         )
 
-        # -------- save button --------
-        if st.button("💾 Save changes to database", help="Insert / update"):
-            with st.spinner("Writing changes…"):
-                conn = get_connection(db)
-                cur = conn.cursor()
-
-                pk_cols = _get_primary_keys(cur, table)
-                if not pk_cols:
-                    st.error(
-                        f"Table **{table}** has no PRIMARY KEY → cannot "
-                        "reliably update rows."
-                    )
-                    cur.close()
-                    conn.close()
-                    st.stop()
-
-                rows_to_upsert, errs = _detect_changes(
-                    df_orig, df_edit, pk_cols
-                )
-                if errs:
-                    st.error(
-                        f"❌ {len(errs)} row(s) skipped because of errors; "
-                        "see details below."
-                    )
-                    st.json(errs, expanded=False)
-
-                wrote = 0
-                for old_row, new_row in rows_to_upsert:
-                    try:
-                        _upsert_row(cur, db, table, pk_cols,
-                                    old_row, new_row)
-                        wrote += 1
-                    except Exception as exc:  # noqa: BLE001
-                        st.error(f"Write error: {exc}")
-
-                conn.commit()
-                cur.close()
-                conn.close()
-
-                if wrote:
-                    toast_msg = f"✅ {wrote} row(s) written."
-                    if SHOW_SQL_IN_SUCCESS_TOAST:
-                        st.success(toast_msg, icon="💾")
-                    else:
-                        st.toast(toast_msg)
-                simple_rerun()
-
-    # ================================================================
-    # TAB 2  SQL Editor
-    # ================================================================
-    with tab_sql:
-        st.subheader(f"Run SQL against `{db}`")
-
-        default_sql = "-- Type SQL here (multiple statements OK)\nSELECT NOW();"
-        sql_text = st.text_area(
-            "SQL input",
-            value=st.session_state.get("sql_buf", default_sql),
-            height=260,
-            key="sql_textarea",
-        )
-
-        if st.button("▶ Run", key="run_sql_btn"):
-            st.session_state["sql_buf"] = sql_text
-            statements = [
-                s.strip() for s in sqlparse.split(sql_text) if s.strip()
-            ]
-            if not statements:
-                st.warning("Nothing to execute.")
-                st.stop()
-
-            conn = get_connection(db)
-            cur = conn.cursor()
-
-            for i, stmt in enumerate(statements, 1):
-                st.markdown(f"##### Statement {i}")
-                try:
-                    cur.execute(stmt)
-                    if cur.description:  # SELECT etc.
-                        cols = [d[0] for d in cur.description]
-                        rows = cur.fetchall()
-                        df = pd.DataFrame(rows, columns=cols)
-                        st.dataframe(df, use_container_width=True)
-                        st.caption(f"{len(df):,} row(s) returned")
-                    else:
-                        conn.commit()
-                        st.success(f"{cur.rowcount:,} row(s) affected")
-                except Exception as exc:  # noqa: BLE001
-                    st.error(f"Execution error: {exc}")
-                    conn.rollback()
-                    break  # stop at first failure
-
-            cur.close()
-            conn.close()
-
-    # ================================================================
-    # TAB 3  Create New Table
-    # ================================================================
-    with tab_new:
-        st.subheader(f"Create a new table in `{db}`")
-
-        create_tpl = (
-            "-- Write a full CREATE TABLE statement.\n"
-            "CREATE TABLE example_table (\n"
-            "  id INT AUTO_INCREMENT PRIMARY KEY,\n"
-            "  name VARCHAR(100),\n"
-            "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n"
-            ") ENGINE=InnoDB "
-            "DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
-        )
-
-        create_sql = st.text_area(
-            "CREATE TABLE statement",
-            value=st.session_state.get("create_sql", create_tpl),
-            height=300,
-            key="create_sql_area",
-        )
-
-        if st.button("🚀 Execute CREATE TABLE", key="exec_create"):
-            st.session_state["create_sql"] = create_sql
+        if st.button("Save Changes", key="save_btn"):
             try:
-                conn = get_connection(db)
-                cur = conn.cursor()
-                cur.execute(create_sql)
-                conn.commit()
-                st.success("Table created successfully!")
-                simple_rerun()
-            except Exception as exc:  # noqa: BLE001
+                conn = get_connection(db); cur = conn.cursor()
+
+                orig_pk_set   = set(orig_df[pk_col].dropna())
+                edited_pk_set = set(edited_df[pk_col].dropna())
+
+                # Deletes
+                del_pks = (orig_pk_set - edited_pk_set) | set(to_delete)
+                del_cnt = 0
+                for pk_val in del_pks:
+                    cur.execute(
+                        f"DELETE FROM `{tbl}` WHERE `{pk_col}`=%s",
+                        (_py(pk_val),),
+                    )
+                    del_cnt += cur.rowcount
+
+                # Updates
+                upd_cnt = 0
+                for pk_val in edited_pk_set & orig_pk_set:
+                    row_old = orig_df.loc[orig_df[pk_col] == pk_val].iloc[0]
+                    row_new = edited_df.loc[edited_df[pk_col] == pk_val].iloc[0]
+
+                    for c in cols:
+                        if c in generated_cols:
+                            continue
+                        if row_new[c] != row_old[c]:
+                            cur.execute(
+                                f"UPDATE `{tbl}` SET `{c}`=%s WHERE `{pk_col}`=%s",
+                                (_py(row_new[c]), _py(pk_val)),
+                            )
+                            upd_cnt += cur.rowcount
+
+                # Inserts: only if both PK and fullname are set
+                ins_cnt = 0
+                insert_cols = [c for c in cols if c not in generated_cols]
+                placeholders = ", ".join("%s" for _ in insert_cols)
+                col_list     = ", ".join(f"`{c}`" for c in insert_cols)
+
+                for _, row in edited_df.iterrows():
+                    pk_val = row[pk_col]
+                    is_new = pk_val in (None, "", 0) or pk_val not in orig_pk_set
+                    if not is_new:
+                        continue
+
+                    # Skip rows missing username or fullname
+                    if row.get(pk_col) in (None, "") or row.get('fullname') in (None, ""):
+                        continue
+
+                    cur.execute(
+                        f"INSERT INTO `{tbl}` ({col_list}) VALUES ({placeholders})",
+                        tuple(_py(row[c]) for c in insert_cols),
+                    )
+                    ins_cnt += cur.rowcount
+
+                # Commit & Feedback
+                if del_cnt or upd_cnt or ins_cnt:
+                    conn.commit()
+                    parts = []
+                    if ins_cnt: parts.append(f"🟢 {ins_cnt} insert")
+                    if upd_cnt: parts.append(f"🟡 {upd_cnt} update")
+                    if del_cnt: parts.append(f"🔴 {del_cnt} delete")
+                    st.success(" | ".join(parts) + " committed.")
+                    simple_rerun()
+                else:
+                    st.info("Nothing to save – no changes detected.")
+
+            except Exception as e:
                 conn.rollback()
-                st.error(f"Creation failed: {exc}")
+                st.error(f"Save failed: {e}")
             finally:
-                cur.close()
-                conn.close()
+                cur.close(); conn.close()
+
+    # =====================================================================
+    # TAB 2 – Free SQL / DDL Editor
+    # =====================================================================
+    with tab_sql:
+        st.subheader(f"Run custom SQL against `{db}`")
+
+        default_sql = (
+            "-- Example:\n"
+            "SELECT * FROM your_table LIMIT 10;\n\n"
+            "-- Or load your current schema with the button below."
+        )
+
+        # Button to load full schema
+        if st.button("Load current schema", key="load_schema"):
+            schema_statements = []
+            conn = get_connection(db); cur = conn.cursor()
+
+            # Tables
+            cur.execute("SHOW TABLES")
+            tables = [t[0] for t in cur.fetchall()]
+            for tbl in tables:
+                cur.execute(f"SHOW CREATE TABLE `{tbl}`")
+                row = cur.fetchone()
+                create_sql = row[1]
+                schema_statements.append(f"{create_sql};\n\n")
+
+            # Triggers
+            cur.execute("SHOW TRIGGERS")
+            triggers = [r[0] for r in cur.fetchall()]
+            for trg in triggers:
+                cur.execute(f"SHOW CREATE TRIGGER `{trg}`")
+                row = cur.fetchone()
+                create_sql = row[2]
+                schema_statements.append(f"{create_sql};\n\n")
+
+            cur.close(); conn.close()
+            st.session_state.schema_sql = "".join(schema_statements)
+
+        # Editable SQL area
+        sql_code = st.text_area(
+            "SQL statements (semicolon-separated)",
+            value=st.session_state.get("schema_sql", default_sql),
+            height=400,
+            key="schema_sql_area",
+        )
+
+        if st.button("Execute", key="exec_sql"):
+            cleaned_sql = "\n".join(
+                line for line in sql_code.splitlines()
+                if not line.strip().upper().startswith("DELIMITER")
+            )
+
+            try:
+                conn = get_connection(db); cur = conn.cursor()
+                any_write = False
+
+                for idx, result in enumerate(
+                        cur.execute(cleaned_sql, multi=True), start=1):
+                    if result.with_rows:
+                        st.markdown(f"##### Result set {idx}")
+                        st.dataframe(
+                            pd.DataFrame(
+                                result.fetchall(),
+                                columns=[d[0] for d in result.description],
+                            ),
+                            use_container_width=True,
+                        )
+                    else:
+                        any_write = True
+                        st.success(
+                            f"Statement {idx}: {result.rowcount} row(s) affected."
+                        )
+
+                if any_write:
+                    conn.commit()
+                    st.success("Changes committed.")
+                    simple_rerun()
+
+            except Exception as e:
+                conn.rollback()
+                st.error(f"Execution failed: {e}")
+            finally:
+                cur.close(); conn.close()
